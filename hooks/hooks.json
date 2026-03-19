@@ -1,0 +1,87 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-deps.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r \".tool_input.command // empty\" 2>/dev/null); if echo \"$CMD\" | grep -q \"gh pr create\"; then bash \"${CLAUDE_PLUGIN_ROOT}/scripts/agent-dev-gate.sh\" pre-pr \"$PWD\"; fi'",
+            "timeout": 5,
+            "statusMessage": "Checking PR gate..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/patch-state-session.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "tech-designer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Tech designer completed. MANDATORY: IMMEDIATELY write the design output to .agent-dev/tech-design.md. Then update state.json phase.\"}}'",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "design-reviewer|code-reviewer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Review agent completed. MANDATORY: 1) Parse CONFIDENCE and VERDICT from the result. 2) IMMEDIATELY write output to .agent-dev/review.json or .agent-dev/code-review.json. 3) Update state.json. If CONFIDENCE < 60, escalate to user.\"}}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "auto|manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/post-compact-resume.sh\"",
+            "timeout": 10,
+            "statusMessage": "Restoring pipeline context..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh\"",
+            "timeout": 10,
+            "statusMessage": "Checking pipeline status..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+.DS_Store
+*.swp
+*.swo
+
+# Pipeline artifacts (generated at runtime in user projects)
+.agent-dev/
+
+# Setup artifacts (machine-specific symlink manifest)
+.claude/.agent-dev-setup.json
+.claude/.agent-dev-hooks-backup.json
