@@ -24,6 +24,7 @@ scripts/                      ← Shell scripts for gates, health checks, contex
   patch-state-session.sh      ← Auto-injects sessionId into state.json on Write
   post-compact-resume.sh      ← PostCompact hook: restores pipeline context after compaction
   health-check.sh             ← Detects stalled pipelines, sends macOS notifications
+  write-telemetry.sh          ← Appends pipeline run metrics to ~/.agent-dev-telemetry.tsv
 .mcp.json                     ← MCP server config (Notion, Figma, Chrome DevTools)
 .lsp.json                     ← LSP server config (TypeScript, Swift, Kotlin, PHP)
 ```
@@ -57,6 +58,18 @@ Critical gates are enforced by hook scripts with `exit 2` (block), not by prompt
 ### MCP Integration
 
 Notion, Figma, and Chrome DevTools are accessed via MCP. MCP auth does NOT propagate to subagents — the parent does FETCH directly.
+
+### Telemetry
+
+Every pipeline run appends a row to `~/.agent-dev-telemetry.tsv` (autoresearch-inspired experiment log).
+
+**Score formula** (0-100):
+- Completion: 40 pts (ran to COMPLETED)
+- Low interventions: 30 pts (0 human asks = 30, each -10)
+- Design first-pass: 15 pts (1 round = 15, each extra round -5)
+- Code review first-pass: 15 pts (1 round = 15, each extra round -5)
+
+`state.json` tracks `metrics.interventions` (incremented on ESCALATE or user-ask) and `metrics.completedAt`. The `write-telemetry.sh` script computes the score and writes the TSV row.
 
 ## Development
 

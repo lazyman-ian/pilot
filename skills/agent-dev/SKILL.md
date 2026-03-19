@@ -129,6 +129,10 @@ After each subagent returns, YOU write its output to `.agent-dev/` immediately.
   "completedSteps": [],
   "prUrl": null,
   "error": null,
+  "metrics": {
+    "interventions": 0,
+    "completedAt": null
+  },
   "createdAt": "<ISO8601>",
   "updatedAt": "<ISO8601>"
 }
