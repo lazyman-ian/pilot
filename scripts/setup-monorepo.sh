@@ -108,16 +108,11 @@ for dir in "$ROOT"/*/; do
   if [ -f "$project_claude/settings.json" ]; then
     ABS_PROJECT_DIR=$(cd "$dir" && pwd)
 
-    # Extract and rewrite hooks:
-    # 1. Replace $CLAUDE_PROJECT_DIR with absolute path
-    # 2. Wrap in subshell with `cd <project-dir>` so tools resolve correctly
+    # Extract and rewrite hooks: replace $CLAUDE_PROJECT_DIR with absolute path
     for hook_type in PreToolUse PostToolUse Stop PostCompact; do
       hooks=$(jq -r --arg ht "$hook_type" --arg pd "$ABS_PROJECT_DIR" \
         '.hooks[$ht] // [] | map(
-          .hooks = [.hooks[]? | .command = ("(cd " + $pd + " && " + (.command
-            | gsub("\\$CLAUDE_PROJECT_DIR"; $pd)
-            | gsub("\\${CLAUDE_PROJECT_DIR}"; $pd)
-          ) + ")")]
+          .hooks = [.hooks[]? | .command = (.command | gsub("\\$CLAUDE_PROJECT_DIR"; $pd) | gsub("\\${CLAUDE_PROJECT_DIR}"; $pd))]
         ) | if length > 0 then . else empty end' \
         "$project_claude/settings.json" 2>/dev/null) || continue
 
