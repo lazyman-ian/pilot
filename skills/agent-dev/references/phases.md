@@ -216,7 +216,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
 
 ## Phase 6: CODE_REVIEW + VISUAL_CHECK
 
-Run sequentially: code review first, then visual check (if conditions met).
+Run sequentially: code review first, then visual check.
 
 ### 6a: Code Review (always runs)
 1. Invoke `@agent-dev:code-reviewer` with prompt:
@@ -235,21 +235,24 @@ Run sequentially: code review first, then visual check (if conditions met).
    }
    ```
 4. Decision tree:
-   - **APPROVE + tests/lint PASS**: proceed to 6b (if applicable) or PR
-   - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, increment codeReviewCount, re-invoke
+   - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, commit, increment codeReviewCount, re-invoke code-reviewer from step 1
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
+   - **APPROVE**: proceed to VISUAL_CHECK gate (step 5)
+5. **VISUAL_CHECK gate** — check ALL three conditions:
+   - `requirement.json` has `figmaDesign` that is NOT null
+   - `targetProject` is `web-hybrid`
+   - Implementation includes `.vue` file changes (check `git diff --name-only <baseBranch>..HEAD | grep '\.vue$'`)
+
+   **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
+   **Any false** → update state.json: phase → PR, proceed to Phase 7
 
 ---
 
-## Phase 6b: VISUAL_CHECK (conditional — only when ALL conditions met)
+## Phase 6b: VISUAL_CHECK (MANDATORY when gate passed in 6a step 5)
 
-**Skip this phase entirely if ANY of these are true:**
-- requirement.json has `figmaDesign: null` (no design reference)
-- targetProject is NOT web-hybrid (Chrome DevTools only works for web)
-- The changes don't include UI modifications (backend-only changes)
-
-**When to run:** figmaDesign exists AND targetProject is web-hybrid AND changes include UI files (.vue)
+If you reached this phase, the gate in Phase 6a confirmed: Figma designs exist,
+target is web-hybrid, and .vue files were changed. **Do NOT skip this phase.**
 
 YOU do this directly using Figma MCP + Chrome DevTools MCP.
 
