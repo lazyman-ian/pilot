@@ -70,10 +70,11 @@ case "$PHASE" in
   DESIGN)    RESUME="$RESUME Invoke @agent-dev:tech-designer." ;;
   REVIEW)    RESUME="$RESUME Invoke @agent-dev:design-reviewer." ;;
   PLAN)      RESUME="$RESUME Generate plan and proceed to IMPLEMENT." ;;
-  IMPLEMENT) RESUME="$RESUME Implement step ${CURRENT_STEP:-next}." ;;
+  IMPLEMENT) RESUME="$RESUME Invoke @agent-dev:implementer with plan." ;;
   CODE_REVIEW) RESUME="$RESUME Invoke @agent-dev:code-reviewer." ;;
   VISUAL_CHECK) RESUME="$RESUME Run visual design check (Figma + Chrome DevTools)." ;;
   PR)        RESUME="$RESUME Create draft PR." ;;
+  PROJECT_TRANSITION) RESUME="$RESUME Archive artifacts and advance to next project." ;;
 esac
 
 jq -n \

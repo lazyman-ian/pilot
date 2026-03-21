@@ -14,13 +14,9 @@ command -v jq &>/dev/null || exit 0
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 [ -z "$SESSION_ID" ] && exit 0
 
-# Check if sessionId is missing or null in state.json
-CURRENT=$(jq -r '.sessionId // empty' "$FILE" 2>/dev/null)
-if [ -z "$CURRENT" ] || [ "$CURRENT" = "null" ]; then
-  # Inject session ID
-  TMP="${FILE}.tmp.$$"
-  jq --arg sid "$SESSION_ID" '.sessionId = $sid' "$FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$FILE"
-fi
+# Always inject the real session ID (overwrite whatever the agent wrote)
+TMP="${FILE}.tmp.$$"
+jq --arg sid "$SESSION_ID" '.sessionId = $sid' "$FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$FILE"
 
 # Validate required fields
 if ! jq -e '.phase and .pipelineId' "$FILE" >/dev/null 2>&1; then

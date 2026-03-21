@@ -15,6 +15,7 @@ skills/agent-dev/references/  ← phases.md (detailed phase instructions), promp
 agents/                       ← Subagent definitions (markdown frontmatter + system prompts)
   tech-designer.md            ← Sonnet, READ-ONLY, generates tech design
   design-reviewer.md          ← Opus, READ-ONLY, skeptical independent review
+  implementer.md              ← Sonnet, R/W, JIT step-by-step implementation
   code-reviewer.md            ← Opus, has Bash, runs tests + reviews code
 hooks/hooks.json              ← Hook definitions (SessionStart, PreToolUse, PostToolUse, etc.)
 hooks/stop-hook.sh            ← Prevents pipeline session from stopping mid-pipeline
@@ -31,21 +32,23 @@ scripts/                      ← Shell scripts for gates, health checks, contex
 
 ## Architecture
 
-### Pipeline: 7 Phases
+### Pipeline: 8 Phases
 
-FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW (+VISUAL_CHECK) → PR
+FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW (+VISUAL_CHECK) → PR [→ PROJECT_TRANSITION → repeat]
 
-- **Parent agent** (the main Claude session) executes phases 1, 1.5, 4, 5, 7 directly
-- **Subagents** execute phases 2, 3, 6 — parent MUST persist their output to `.agent-dev/` files immediately
+- **Parent agent** (lightweight orchestrator) executes phases 1, 1.5, 4, 7, 8 directly
+- **Subagents** execute phases 2, 3, 5, 6 — parent MUST persist their output to `.agent-dev/` files immediately
 - State machine in `.agent-dev/state.json` tracks progress; all artifacts live in CWD's `.agent-dev/`
+- **Multi-project**: after PR, pipeline auto-transitions to next project in queue via PROJECT_TRANSITION
 
 ### Context Boundary Design
 
 Agents are split by **what context they need**, not by role:
-- `tech-designer` (Sonnet): needs codebase read access, produces design doc
+- `tech-designer` (Sonnet): needs codebase read access, produces architecture-level design
 - `design-reviewer` (Opus): isolated context for anti-sycophancy — reviews design independently
+- `implementer` (Sonnet): fresh context per project, JIT file reading per step — keeps parent lightweight
 - `code-reviewer` (Opus): needs Bash for tests/lint, reviews implementation against requirements
-- Parent handles planning + implementation for continuous context
+- Parent is a pure orchestrator — never reads/writes project code directly
 
 ### Enforcement: Scripts > Prompts
 

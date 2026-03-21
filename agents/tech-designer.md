@@ -76,10 +76,16 @@ New/modified endpoints. Request/response types.
 ## UI Changes
 Component tree, state management. Reference Figma components and existing code.
 Include DOM structure showing how new elements coexist with existing ones.
+**Flag side effects**: if modifying a file requires changing a conditional (v-if), layout,
+or other non-obvious element, document it explicitly.
 
 ## File Changes
-| File | Action | Description |
-|------|--------|-------------|
+| File | Action | Pattern Reference | Description |
+|------|--------|-------------------|-------------|
+
+**Pattern Reference**: for each NEW file, specify an existing file in the project that the
+implementer should read and follow as a pattern. For example, a new Pinia store should reference
+an existing store file. This enables just-in-time pattern discovery during implementation.
 
 ## Edge Cases & Error Handling
 

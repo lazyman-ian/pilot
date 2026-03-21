@@ -19,6 +19,9 @@ BRANCH=$(jq -r '.branch // empty' "$STATE" 2>/dev/null)
 STEP=$(jq -r '.currentStep // empty' "$STATE" 2>/dev/null)
 TOTAL=$(jq -r '.completedSteps | length' "$STATE" 2>/dev/null)
 NOTION=$(jq -r '.notionUrl // empty' "$STATE" 2>/dev/null)
+QUEUE_LEN=$(jq -r '.projectQueue | length // 0' "$STATE" 2>/dev/null)
+QUEUE_IDX=$(jq -r '.currentProjectIndex // 0' "$STATE" 2>/dev/null)
+COMPLETED_PROJECTS=$(jq -r '.completedProjects | length // 0' "$STATE" 2>/dev/null)
 
 # Don't inject for completed/failed pipelines
 case "$PHASE" in
@@ -33,6 +36,8 @@ MSG="$MSG\n- Phase: $PHASE"
 [ -n "$BRANCH" ] && MSG="$MSG\n- Branch: $BRANCH"
 [ -n "$STEP" ] && MSG="$MSG\n- Current step: $STEP (completed: $TOTAL)"
 
+[ "$QUEUE_LEN" -gt 1 ] 2>/dev/null && MSG="$MSG\n- Project queue: $((QUEUE_IDX + 1))/$QUEUE_LEN (completed: $COMPLETED_PROJECTS)"
+
 MSG="$MSG\n\nTo resume:"
 MSG="$MSG\n1. Read $STATE for full pipeline state"
 case "$PHASE" in
@@ -42,10 +47,11 @@ case "$PHASE" in
   REVIEW)   MSG="$MSG\n2. Read .agent-dev/tech-design.md, invoke @agent-dev:design-reviewer" ;;
   ESCALATED)MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/review.json for issues. Ask user how to proceed." ;;
   PLAN)     MSG="$MSG\n2. Read .agent-dev/tech-design.md + review.json, generate plan" ;;
-  IMPLEMENT)MSG="$MSG\n2. Read .agent-dev/plan.json for step $STEP details, continue implementing" ;;
+  IMPLEMENT)MSG="$MSG\n2. Read .agent-dev/plan.json, invoke @agent-dev:implementer" ;;
   CODE_REVIEW) MSG="$MSG\n2. Invoke @agent-dev:code-reviewer" ;;
   VISUAL_CHECK) MSG="$MSG\n2. Run visual check: Figma screenshot vs browser screenshot comparison" ;;
   PR)       MSG="$MSG\n2. Push branch and create draft PR" ;;
+  PROJECT_TRANSITION) MSG="$MSG\n2. Archive artifacts, advance to next project in queue" ;;
 esac
 
 MSG="$MSG\n3. Read phases.md in the agent-dev skill references for detailed instructions"

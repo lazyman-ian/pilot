@@ -25,19 +25,20 @@ or resuming after compaction.
 | 2. Design | @agent-dev:tech-designer → **YOU write file** | `.agent-dev/tech-design.md` |
 | 3. Review | @agent-dev:design-reviewer → **YOU write file** | `.agent-dev/review.json` |
 | 4. Plan | **YOU** | `.agent-dev/plan.json` + git branch |
-| 5. Implement | **YOU** | code + per-step commits |
+| 5. Implement | @agent-dev:implementer → **YOU update state** | code + per-step commits |
 | 6a. Code Review | @agent-dev:code-reviewer → **YOU write file** | `.agent-dev/code-review.json` |
 | 6b. Visual Check | **YOU** (Figma + Chrome DevTools MCP, conditional) | `.agent-dev/visual-review.json` |
 | 7. PR | **YOU** | draft PR |
 
-Phase 1/1.5/4/5/7: YOU execute directly.
-Phase 2/3/6: Subagent executes, YOU persist result to file immediately.
+Phase 1/1.5/4/7: YOU execute directly.
+Phase 2/3/5/6: Subagent executes, YOU persist result to file immediately.
 
 ## Subagent Namespace
 
 Plugin agents use namespace prefix. Always use:
 - `@agent-dev:tech-designer` (NOT `@tech-designer`)
 - `@agent-dev:design-reviewer` (NOT `@design-reviewer`)
+- `@agent-dev:implementer` (NOT `@implementer`)
 - `@agent-dev:code-reviewer` (NOT `@code-reviewer`)
 
 ## Monorepo Project Map
@@ -82,14 +83,18 @@ ALL artifacts live in `<CWD>/.agent-dev/`. CWD is wherever you started the pipel
 Code changes target `projectDir` via absolute paths. Artifacts stay in CWD.
 
 ```
-.agent-dev/                    ← always in CWD (monorepo root)
+.agent-dev/                    ← always in CWD
 ├── state.json                 ← pipeline state machine
-├── requirement.json           ← Phase 1 output
-├── tech-design.md             ← Phase 2 output
-├── review.json                ← Phase 3 output
-├── plan.json                  ← Phase 4 output
-├── code-review.json           ← Phase 6a output
-└── visual-review.json         ← Phase 6b output (conditional)
+├── requirement.json           ← Phase 1 output (shared across projects)
+├── cross-project-summary.md   ← accumulated cross-project decisions (multi-project only)
+├── tech-design.md             ← Phase 2 output (current project)
+├── review.json                ← Phase 3 output (current project)
+├── plan.json                  ← Phase 4 output (current project)
+├── code-review.json           ← Phase 6a output (current project)
+├── visual-review.json         ← Phase 6b output (conditional)
+└── completed/                 ← archived artifacts from completed projects
+    ├── web-hybrid.tech-design.md
+    └── web-hybrid.code-review.json
 ```
 
 After each subagent returns, YOU write its output to `.agent-dev/` immediately.
@@ -113,12 +118,16 @@ After each subagent returns, YOU write its output to `.agent-dev/` immediately.
 ```json
 {
   "pipelineId": "pipeline-<timestamp>",
-  "sessionId": "${CLAUDE_SESSION_ID}",
+  "sessionId": null,
   "notionUrl": "https://...",
-  "projectDir": "/absolute/path/to/project",
+  "phase": "FETCH|RESOLVE|DESIGN|REVIEW|ESCALATED|PLAN|IMPLEMENT|CODE_REVIEW|VISUAL_CHECK|PR|PROJECT_TRANSITION|COMPLETED|FAILED",
+
+  "projectQueue": ["web-hybrid", "housesigma-ios-native"],
+  "currentProjectIndex": 0,
+  "completedProjects": [],
+
   "targetProject": "web-hybrid",
-  "otherProjects": [],
-  "phase": "FETCH|RESOLVE|DESIGN|REVIEW|ESCALATED|PLAN|IMPLEMENT|CODE_REVIEW|VISUAL_CHECK|PR|COMPLETED|FAILED",
+  "projectDir": "/absolute/path/to/project",
   "branch": "feat/<slug>",
   "baseBranch": "main",
   "reviewConfidence": null,
@@ -129,6 +138,7 @@ After each subagent returns, YOU write its output to `.agent-dev/` immediately.
   "completedSteps": [],
   "prUrl": null,
   "error": null,
+
   "metrics": {
     "interventions": 0,
     "completedAt": null

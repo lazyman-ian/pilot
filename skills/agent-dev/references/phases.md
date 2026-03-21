@@ -55,8 +55,8 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
      "metadata": { "priority": "string", "status": "string" }
    }
    ```
-6. Write `.agent-dev/state.json`: `{ "pipelineId": "pipeline-<timestamp>", "sessionId": "${CLAUDE_SESSION_ID}", "phase": "FETCH", "notionUrl": "<url>", "metrics": {"interventions": 0, "completedAt": null}, "createdAt": "<ISO>", "updatedAt": "<ISO>" }`
-   IMPORTANT: include sessionId so the Stop hook only blocks THIS session, not other sessions in the same directory.
+6. Write `.agent-dev/state.json`: `{ "pipelineId": "pipeline-<timestamp>", "sessionId": null, "phase": "FETCH", "notionUrl": "<url>", "metrics": {"interventions": 0, "completedAt": null}, "createdAt": "<ISO>", "updatedAt": "<ISO>" }`
+   IMPORTANT: sessionId is auto-injected by the PostToolUse hook on every state.json write. Always write `null` — never hardcode a value.
 7. Log a one-line summary then IMMEDIATELY continue — do NOT stop, do NOT ask the user anything:
    "需求: **<title>** | 平台: <affectedProjects> | AC: <count> 条 | Figma: <有/无>"
 8. Update state.json: phase → RESOLVE. Proceed to Phase 1.5 in the SAME response.
@@ -65,7 +65,7 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
 
 ## Phase 1.5: RESOLVE (Project Resolution)
 
-Determine which project to work in. All subsequent phases operate on this project's codebase.
+Determine which project(s) to work in and build the project queue.
 `.agent-dev/` stays in CWD — do NOT move it.
 
 1. Read `affectedProjects` from requirement.json
@@ -74,20 +74,19 @@ Determine which project to work in. All subsequent phases operate on this projec
    - For each project, investigate whether it actually contains code that needs to change
    - Read CLAUDE.md, grep for the relevant page/feature, check the actual implementation
    - Only keep projects that genuinely require code modifications
-   - Remove projects where the change is inherited from another project
+   - Remove projects where the change is already done (e.g., backend PR already merged)
 
-3. **SINGLE PROJECT** (common after verification):
+3. **BUILD projectQueue** — ordered by dependency:
+   - Backend/API first (realagent-datafeed)
+   - Then frontend (web-hybrid)
+   - Then native (housesigma-ios-native, housesigma-android-native)
+   - If only one project remains after verification, queue has one entry
+
+4. **SET FIRST PROJECT**:
+   - `targetProject` = `projectQueue[0]`
    - CWD IS that project (has .git/) → projectDir = CWD (BEST: project's .claude/ hooks/rules active)
-   - CWD is monorepo root → projectDir = `<CWD>/<affectedProject>`
-     Note: sub-project's .claude/ hooks won't auto-load in this case.
-     Read `<projectDir>/.claude/settings.json` for hooks and manually apply them (e.g., run lint after edits).
+   - CWD is monorepo root → projectDir = `<CWD>/<targetProject>`
    - Verify projectDir has `.git/`
-
-4. **GENUINELY MULTIPLE PROJECTS** (e.g., new API endpoint + frontend):
-   - Only if changes truly require different codebases
-   - Set targetProject to the dependency root (usually backend first)
-   - Record otherProjects for follow-up
-   - Do NOT stop to ask user — just pick the right order and proceed
 
 5. Verify clean working tree: `git -C <projectDir> status --porcelain`
    - If dirty → warn, ask to stash or continue
@@ -97,7 +96,7 @@ Determine which project to work in. All subsequent phases operate on this projec
    - Verify project dependencies are installed (check for node_modules, Pods, etc.)
    - If missing, suggest the install command from project docs
 
-7. Update state.json: projectDir, targetProject, otherProjects, phase → DESIGN
+7. Update state.json: projectDir, targetProject, projectQueue, currentProjectIndex → 0, phase → DESIGN
 
 ---
 
@@ -108,6 +107,7 @@ Determine which project to work in. All subsequent phases operate on this projec
    - Full requirement content
    - "Target project directory: <projectDir>"
    - If cross-project: "Related projects for API reference: <list>"
+   - If `.agent-dev/cross-project-summary.md` exists: include it ("Previous projects made these decisions. Maintain consistency.")
    - If revision: include feedback from `.agent-dev/review.json`
 3. **IMMEDIATELY write** returned markdown to `.agent-dev/tech-design.md`
 4. Update state.json: phase → REVIEW
@@ -150,6 +150,10 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
 2. Read `.agent-dev/tech-design.md`, break into atomic steps:
    - Each step: 1-3 files, has verification command (from project docs)
    - Order: types/schema → backend → API → frontend → tests
+   - For each step, identify:
+     - `designSection`: which section of tech-design.md describes this step
+     - `patternRef`: an existing file in the project that serves as the pattern to follow (e.g., an existing store for a new store)
+     - `dependsOn`: which prior step indices this step depends on
 3. Detect base branch:
    `git -C <projectDir> rev-parse --abbrev-ref origin/HEAD 2>/dev/null`
    This returns e.g. "origin/main" — strip the "origin/" prefix.
@@ -160,41 +164,53 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "totalSteps": N,
      "baseBranch": "main",
      "branchName": "feat/<slug>",
-     "steps": [{"index": 1, "title": "...", "description": "...",
-       "filesCreate": [], "filesModify": [], "verification": "..."}]
+     "steps": [
+       {
+         "index": 1,
+         "title": "...",
+         "description": "...",
+         "designSection": "Data Model Changes",
+         "filesCreate": [],
+         "filesModify": [],
+         "patternRef": "packages/common/definition/watch.ts",
+         "dependsOn": [],
+         "verification": "npx tsc --noEmit"
+       }
+     ]
    }
    ```
 5. Create branch: `git -C <projectDir> checkout -b <branchName>`
 6. Log plan summary:
    "项目: <targetProject>\n分支: <branchName>\n步骤:\n1. <title>\n..."
-7. Update state.json: phase → IMPLEMENT, currentStep → 1
+7. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
 8. Proceed immediately to Phase 5
 
 ---
 
 ## Phase 5: IMPLEMENT
 
-YOU implement ALL steps sequentially. Best continuous context.
+Delegate to `@agent-dev:implementer` — a subagent with fresh context that implements
+all steps using JIT file reading (reads real code before each step, not predictions).
 
-**IMPORTANT: Separate UI and logic in commits.**
-When a step involves both logic and UI changes, split into separate commits:
-- Logic commit: data, API calls, state management, business logic
-- UI commit: template, styles, layout, visual elements
-This enables parallel CODE_REVIEW (logic) + VISUAL_CHECK (UI) in Phase 6.
+1. Read `.agent-dev/plan.json` and `.agent-dev/tech-design.md`
+2. Build the implementer prompt:
+   - `projectDir`: absolute path
+   - `branch`: from plan.json
+   - `steps`: the full steps array from plan.json
+   - For each step, extract the relevant `designSection` content from tech-design.md
+   - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
+3. Invoke `@agent-dev:implementer` with the built prompt
+4. Parse the returned summary:
+   - `COMPLETED_STEPS` → update state.json: completedSteps
+   - `SKIPPED_STEPS` → log warnings
+   - `ISSUES` → if any design/code discrepancies, log them for code review
+5. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
+6. Update state.json: phase → CODE_REVIEW
 
-For each step in plan.json:
-1. Read step details
-2. Implement using Read/Write/Edit/Bash
-   - File paths: `<projectDir>/<relative-path>` (absolute paths)
-   - Follow existing codebase patterns
-3. Run verification: `cd <projectDir> && <verification>`
-   - If verification tool not available (missing deps): note it, continue
-   - If fails with code errors: fix + retry (max 2)
-   - If still fails: ask user (increment metrics.interventions)
-4. Commit: `git -C <projectDir> add <files> && git -C <projectDir> commit -m "feat(<scope>): <title>"`
-5. Update state.json: completedSteps += index, currentStep → next
-
-After all steps: phase → CODE_REVIEW
+**If implementer reports failures:**
+- Steps that failed verification but were committed → let code-reviewer catch them
+- Steps that were skipped → assess if critical. If blocking, fix manually and re-commit.
+  If >2 manual fixes needed, increment metrics.interventions.
 
 ---
 
@@ -306,13 +322,54 @@ Do NOT hardcode any project-specific details here — discover them from the pro
    ---
    > Generated by agent-dev. Human review required before merge.
    ```
-4. Update state.json: phase → COMPLETED, prUrl → <url>, metrics.completedAt → <ISO>
-5. Write telemetry:
+4. Write telemetry:
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.3.0"
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
    ```
-   This appends a row to `~/.agent-dev-telemetry.tsv` with pipeline score and metrics.
-6. Report: "Pipeline 完成. PR: <url>" — include the telemetry score in the summary.
-7. If otherProjects in state.json:
-   "还有 <otherProjects> 需要实现。要继续下一个项目吗？"
-8. Ask: "清理 .agent-dev/ 文件？"
+5. Report: "✅ **<targetProject>** PR: <url> (score: <N>)"
+6. Update state.json: prUrl → <url>
+7. **Check project queue**: if `currentProjectIndex < projectQueue.length - 1` → phase → PROJECT_TRANSITION, proceed immediately
+8. Otherwise → phase → COMPLETED, metrics.completedAt → <ISO>. Ask: "清理 .agent-dev/ 文件？"
+
+---
+
+## Phase 8: PROJECT_TRANSITION (multi-project only)
+
+Transition from one completed project to the next in the queue.
+
+1. **Archive current project's artifacts**:
+   ```bash
+   mkdir -p .agent-dev/completed
+   for f in tech-design.md review.json plan.json code-review.json visual-review.json; do
+     [ -f ".agent-dev/$f" ] && mv ".agent-dev/$f" ".agent-dev/completed/<targetProject>.$f"
+   done
+   ```
+
+2. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
+   ```markdown
+   ## <targetProject> (completed)
+   - **PR**: <prUrl>
+   - **Branch**: <branch>
+   - **API contracts consumed**: <list endpoints and param shapes from tech-design>
+   - **Key design decisions**: <patterns chosen, naming, component architecture>
+   - **Shared naming**: <identifiers that other projects should match>
+   ```
+
+3. **Push to completedProjects** in state.json:
+   ```json
+   { "name": "<targetProject>", "prUrl": "<url>", "branch": "<branch>" }
+   ```
+
+4. **Advance queue**: `currentProjectIndex += 1`
+
+5. **Set new project**:
+   - `targetProject` = `projectQueue[currentProjectIndex]`
+   - `projectDir` = resolve path (CWD/<targetProject> or CWD if matching)
+   - Reset per-project fields: branch, baseBranch, reviewConfidence, reviewRevisionCount, codeReviewConfidence, codeReviewCount, currentStep, completedSteps, prUrl → null
+
+6. **Verify new project** (same as RESOLVE steps 5-6):
+   - Clean working tree
+   - Dependencies installed
+   - Read CLAUDE.md
+
+7. Update state.json: phase → DESIGN. Proceed immediately.

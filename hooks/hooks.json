@@ -56,6 +56,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "implementer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Implementer completed. MANDATORY: 1) Parse COMPLETED_STEPS and ISSUES from the result. 2) Update state.json completedSteps. 3) Verify commits exist with git log. 4) If SKIPPED_STEPS, assess severity.\"}}'",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostCompact": [
