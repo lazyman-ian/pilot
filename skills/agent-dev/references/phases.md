@@ -288,8 +288,11 @@ Do NOT hardcode any project-specific details here — discover them from the pro
 
 5. **Decision**:
    - **MATCH or PARTIAL (minor)**: phase → PR
-   - **MISMATCH**: fix visual issues, re-capture, re-compare (max 1 round)
-   - Still mismatched: phase → PR with visual notes in PR body
+   - **MISMATCH**: fix visual issues (CSS/template edits), then:
+     a. Run project verification (`tsc --noEmit` + lint) to ensure fix didn't break types/lint
+     b. `git commit` the visual fix
+     c. Re-capture browser screenshot, re-compare (max 1 round)
+   - Still mismatched after fix: phase → PR with visual notes in PR body
 
 ---
 
