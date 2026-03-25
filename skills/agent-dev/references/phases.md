@@ -394,7 +394,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 6. **Decision**:
    - **MATCH, PARTIAL (minor), or SKIPPED**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
-     a. Run the project's verified build command, lint command, AND full test suite (if testInfra exists) to ensure visual fix didn't break types, lint, or existing tests
+     a. Run the project's verified build command, lint command, AND full test suite (if testInfra exists) to ensure visual fix didn't break types, lint, or existing tests. Exclude `baselineFailures` from plan.json when evaluating test results (same as IMPLEMENT/CODE_REVIEW).
      b. `git commit` the visual fix
      c. Re-capture browser screenshot, re-compare (max 1 round)
    - Still mismatched after fix: phase → PR with visual notes in PR body
@@ -438,8 +438,9 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
    - **More projects** (`currentProjectIndex < projectQueue.length - 1`):
      → phase → PROJECT_TRANSITION, proceed to Phase 8
    - **Last project**:
-     → phase → COMPLETED, metrics.completedAt → <ISO>
+     → Set metrics.completedAt → <ISO> (but keep phase as PR until telemetry is written)
      → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`
+     → NOW set phase → COMPLETED (only after telemetry is durable)
      → Report all PRs + scores. Ask: "清理 .agent-dev/ 文件？"
 
 ---
@@ -483,17 +484,16 @@ Transition from one completed project to the next in the queue.
    { "name": "<targetProject>", "prUrl": "<url>", "branch": "<branch>" }
    ```
 
-6. **Advance queue**: `currentProjectIndex += 1`
-
-7. **Set new project**:
+6. **Atomic queue advance + new project setup** (do these together in a single state.json write to prevent partial-transition on compaction):
+   - `currentProjectIndex += 1`
    - `targetProject` = `projectQueue[currentProjectIndex]`
    - `projectDir` = resolve path (CWD/<targetProject> or CWD if matching)
    - Reset per-project fields: branch, baseBranch, reviewConfidence, reviewRevisionCount, codeReviewConfidence, codeReviewCount, currentStep, completedSteps, prUrl → null
    - Reset timing: `createdAt` → current ISO (new project start), `metrics.completedAt` → null, `metrics.interventions` → 0
+   - phase → DESIGN (transition complete — resume from here is safe)
 
-8. **Verify new project** (same as RESOLVE steps 5-6):
+7. **Verify new project** (same as RESOLVE steps 6-7):
    - Clean working tree
    - Dependencies installed
    - Read CLAUDE.md
-
-9. Update state.json: phase → DESIGN. Proceed immediately.
+   - Proceed immediately to Phase 4 (PLAN) or Phase 2 (DESIGN) based on state.
