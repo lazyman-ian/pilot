@@ -302,8 +302,11 @@ all steps using JIT file reading (reads real code before each step, not predicti
 
 **If implementer reports failures:**
 - Steps that failed verification but were committed → let code-reviewer catch them
-- Steps that were skipped → assess if critical. If blocking, fix manually and re-commit.
-  If >2 manual fixes needed, increment metrics.interventions.
+- Steps that were skipped → assess if critical. If blocking, re-invoke `@agent-dev:implementer`
+  with the same context as step 3, but set `steps` to ONLY the skipped/failed steps
+  (the implementer will reconstruct anchor set from git history via its Recovery flow).
+  If re-invocation also fails → increment metrics.interventions, proceed to CODE_REVIEW
+  and let code-reviewer flag the gaps.
 
 ---
 
