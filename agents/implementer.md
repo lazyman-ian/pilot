@@ -85,8 +85,8 @@ Maintain a running list of test file paths that MUST pass after every step.
 
 If context compacts mid-implementation:
 1. Run `git -C <projectDir> log --oneline -20` to see which steps are committed
-2. Reconstruct anchor set from **this branch only** (not full repo history):
-   `git diff --name-only <baseBranch>..HEAD | grep -E '\.(test|spec)\.|Test\.(kt|swift|java|php)$|Tests\.(swift)$'`
+2. Reconstruct anchor set from **this branch only** using merge-base (not baseBranch tip, which may have new commits):
+   `git diff --name-only $(git merge-base <baseBranch> HEAD)..HEAD | grep -E '\.(test|spec)\.|Test\.(kt|swift|java|php)$|Tests\.(swift)$'`
    This matches JS/TS (`*.test.ts`, `*.spec.ts`), Kotlin (`*Test.kt`), Swift (`*Tests.swift`), Java (`*Test.java`), PHP (`*Test.php`).
 3. Run the project's full test command to verify state before continuing
 4. Read the plan (provided in your prompt) to find the next uncommitted step

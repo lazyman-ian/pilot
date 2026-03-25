@@ -16,10 +16,11 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
 
 1. **Review injected project docs**: your prompt includes `claudeMd` (CLAUDE.md content inline),
    `conventionFiles` (paths to `.claude/rules/*.md` and `.claude/steering/*.md`), and
-   `testInfra` (the validated test command from PLAN, if available).
-   Read the convention files for coding rules. For test/lint commands:
-   - If `testInfra` is provided, use its `command` (already verified to work during PLAN)
-   - Otherwise fall back to commands from `claudeMd`
+   `testInfra` (the validated test command from PLAN, if available), and
+   `verificationCommand` (the validated build/lint command from PLAN, if available).
+   Read the convention files for coding rules. For commands:
+   - Build/lint: use `verificationCommand` if provided (already verified to work during PLAN), else fall back to `claudeMd`
+   - Tests: use `testInfra.command` if provided, else fall back to `claudeMd`
    Do NOT guess commands — the project documents them.
 2. Run from project dir:
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`

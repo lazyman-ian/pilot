@@ -173,7 +173,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      - `testFile`: path for the test file (follow project test conventions)
      - `testPatternRef`: an existing test file to follow as pattern
      - `assertions`: human-readable list of what the test should verify
-   - If a test needs multiple steps completed, assign testSpec to the **last** dependency step
+   - If a test needs multiple steps completed, assign testSpec to the **last** dependency step and mark earlier prerequisite steps as `VERIFY_ONLY` (they get tested via the later step's test)
    - For each step, also identify:
      - `designSection`: which section of tech-design.md describes this step
      - `patternRef`: an existing file to follow as implementation pattern
@@ -274,6 +274,7 @@ Run sequentially: code review first, then visual check.
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline)
    - **`conventionFiles`**: `.claude/rules/*.md` and `.claude/steering/*.md` paths from PLAN
    - **`testInfra`**: from plan.json (the validated test command — code-reviewer should use this instead of raw CLAUDE.md commands)
+   - **`verificationCommand`**: the working build/lint command discovered in PLAN step 3 (may differ from CLAUDE.md if the documented command was broken)
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
@@ -348,7 +349,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 6. **Decision**:
    - **MATCH or PARTIAL (minor)**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
-     a. Run project verification (`tsc --noEmit` + lint) to ensure fix didn't break types/lint
+     a. Run the project's verified build/lint command (from PLAN step 3) to ensure fix didn't break types/lint
      b. `git commit` the visual fix
      c. Re-capture browser screenshot, re-compare (max 1 round)
    - Still mismatched after fix: phase → PR with visual notes in PR body
