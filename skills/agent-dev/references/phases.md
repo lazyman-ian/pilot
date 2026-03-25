@@ -286,7 +286,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - `testInfra`: from plan.json (test command + framework; null if no test infra)
    - For each step, extract the relevant `designSection` content from tech-design.md (if exists; for simple tasks, use step description directly)
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
-   - **`conventionFiles`**: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths discovered in PLAN step 2
+   - **`conventionFiles`**: list of `.claude/rules/*.md`, `.claude/steering/*.md`, and `.claude/docs/*.md` paths discovered in PLAN step 2
    - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3b (so implementer can ignore them during anchor checks)
    - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
 4. Invoke `@agent-dev:implementer` with the built prompt
@@ -393,7 +393,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 6. **Decision**:
    - **MATCH, PARTIAL (minor), or SKIPPED**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
-     a. Run the project's verified build command (from PLAN step 3) AND lint command (from CLAUDE.md — lint may be separate from build) to ensure fix didn't break types or lint
+     a. Run the project's verified build command, lint command, AND full test suite (if testInfra exists) to ensure visual fix didn't break types, lint, or existing tests
      b. `git commit` the visual fix
      c. Re-capture browser screenshot, re-compare (max 1 round)
    - Still mismatched after fix: phase → PR with visual notes in PR body

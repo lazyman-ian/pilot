@@ -46,7 +46,7 @@ case "$PHASE" in
   DESIGN)   MSG="$MSG\n2. Read .agent-dev/requirement.json, invoke @agent-dev:tech-designer" ;;
   REVIEW)   MSG="$MSG\n2. Read .agent-dev/tech-design.md, invoke @agent-dev:design-reviewer" ;;
   ESCALATED)MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/review.json for issues. Ask user how to proceed." ;;
-  PLAN)     MSG="$MSG\n2. Read .agent-dev/tech-design.md + review.json, generate plan" ;;
+  PLAN)     MSG="$MSG\n2. Read .agent-dev/tech-design.md (if exists — simple tasks skip design) + requirement.json, generate plan" ;;
   IMPLEMENT)MSG="$MSG\n2. Read .agent-dev/plan.json, invoke @agent-dev:implementer" ;;
   CODE_REVIEW) MSG="$MSG\n2. Invoke @agent-dev:code-reviewer" ;;
   VISUAL_CHECK) MSG="$MSG\n2. Run visual check: Figma screenshot vs browser screenshot comparison" ;;
