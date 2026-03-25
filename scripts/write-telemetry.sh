@@ -66,8 +66,13 @@ fi
 INTERVENTION_PTS=$(( 30 - INTERVENTIONS * 10 ))
 [ "$INTERVENTION_PTS" -lt 0 ] && INTERVENTION_PTS=0
 
-DESIGN_PTS=$(( 15 - (DESIGN_ROUNDS - 1) * 5 ))
-[ "$DESIGN_PTS" -lt 0 ] && DESIGN_PTS=0
+# If design was skipped (simple task: reviewConfidence=0 and reviewRevisionCount=0), award 0 design points
+if [ "$REVIEW_CONFIDENCE" = "0" ] && [ "$REVIEW_REVISION_COUNT" = "0" ]; then
+  DESIGN_PTS=0
+else
+  DESIGN_PTS=$(( 15 - (DESIGN_ROUNDS - 1) * 5 ))
+  [ "$DESIGN_PTS" -lt 0 ] && DESIGN_PTS=0
+fi
 
 CODE_REVIEW_PTS=$(( 15 - (CODE_REVIEW_ROUNDS - 1) * 5 ))
 [ "$CODE_REVIEW_PTS" -lt 0 ] && CODE_REVIEW_PTS=0

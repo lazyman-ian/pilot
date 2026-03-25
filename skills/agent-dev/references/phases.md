@@ -319,6 +319,7 @@ Run sequentially: code review first, then visual check.
    - **`testInfra`**: from plan.json (the validated test command — code-reviewer should use this instead of raw CLAUDE.md commands)
    - **`verificationCommand`**: the working build/typecheck command from PLAN
    - **`lintCommand`**: the validated lint command from PLAN (may be separate from build)
+   - **`baseBranch`**: from plan.json (code-reviewer needs it for diff range)
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
