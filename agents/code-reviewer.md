@@ -34,7 +34,8 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    - Flag any planned step that appears missing from the implementation
 6. Run project's verification:
    - **Build/typecheck**: use `verificationCommand` (from step 1)
-   - **Tests**: use `testInfra.command` (from step 1). If `testInfra` is null → report `TEST_RESULT: SKIPPED`
+   - **Tests**: use `testInfra.command` (from step 1). If `testInfra` is null → report `TEST_RESULT: SKIPPED`.
+     If `baselineFailures` is provided in plan.json, compare test output against baseline: only report `TEST_RESULT: FAIL` for **newly introduced** failures. Pre-existing failures in baseline are NOT regressions.
    - **Lint**: use `lintCommand` (from step 1). If absent → fall back to `claudeMd`
 7. Run lint on changed files if lint tool is available
 
@@ -50,7 +51,7 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
 ## Output Format (MUST follow exactly)
 
 ```
-TEST_RESULT: PASS|FAIL (details if fail)
+TEST_RESULT: PASS|FAIL|SKIPPED (details if fail; SKIPPED if no test infra)
 LINT_RESULT: PASS|FAIL (details if fail)
 CONFIDENCE: <0-100>
 VERDICT: APPROVE|FIX_REQUIRED

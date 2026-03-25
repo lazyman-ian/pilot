@@ -450,6 +450,7 @@ Transition from one completed project to the next in the queue.
 1. **Set completion time** (if not already set — idempotent for resume): update state.json `metrics.completedAt` → current ISO timestamp
 2. **Write telemetry** (only if not already written — check if `.agent-dev/completed/<targetProject>.telemetry` marker exists):
    ```bash
+   mkdir -p .agent-dev/completed
    MARKER=".agent-dev/completed/${targetProject}.telemetry"
    if [ ! -f "$MARKER" ]; then
      bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
