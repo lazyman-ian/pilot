@@ -24,8 +24,8 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    - **Lint**: use `lintCommand` if provided, else fall back to `claudeMd`
    All three are validated during PLAN. Fall back to `claudeMd` only if a field is absent.
    Do NOT guess commands — the project documents them.
-2. Run from project dir:
-   `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`
+2. Run from project dir (use `baseBranch` from plan.json, not hardcoded main/master):
+   `cd <projectDir> && git diff $(git merge-base HEAD origin/<baseBranch>)...HEAD`
 3. Read `<CWD>/.agent-dev/requirement.json` for acceptance criteria
 4. Read `<CWD>/.agent-dev/tech-design.md` for intended approach (if it exists — simple tasks skip DESIGN; fall back to `requirement.json` + `plan.json`)
 5. Read `<CWD>/.agent-dev/plan.json` — verify each planned step was implemented:
@@ -34,8 +34,8 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    - Flag any planned step that appears missing from the implementation
 6. Run project's verification:
    - **Build/typecheck**: use `verificationCommand` (from step 1)
-   - **Tests**: use `testInfra.command` (from step 1)
-   - **Lint**: use `lintCommand` (from step 1; validated during PLAN). Fall back to `claudeMd` only if absent.
+   - **Tests**: use `testInfra.command` (from step 1). If `testInfra` is null → report `TEST_RESULT: SKIPPED`
+   - **Lint**: use `lintCommand` (from step 1). If absent → fall back to `claudeMd`
 7. Run lint on changed files if lint tool is available
 
 ## Review Criteria

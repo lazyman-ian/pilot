@@ -47,8 +47,9 @@ Your prompt contains:
       - Write/edit code using absolute paths (`<projectDir>/<relative-path>`)
       - Run this step's `verification` command → expect **GREEN** (pass)
       - If still RED → fix implementation, retry (max 2 attempts)
+      - If still RED after retries → mark step status → `"fail"`, revert uncommitted changes, continue to next step
 
-   c. **Run anchor set** (regression check):
+   c. **Run anchor set** (regression check — only if step b passed):
       - Run the project's full test command (`testInfra.command` with no file args) to verify all previously passing tests still pass
       - **Ignore pre-existing failures**: if your prompt includes a `baselineFailures` list (test names/files that already failed before implementation), exclude those from regression analysis
       - If any NEW failure (not in baseline) → this step broke prior work. Fix before proceeding.
@@ -64,9 +65,9 @@ Your prompt contains:
    b. Implement code
    c. Run verification command from `<projectDir>`
       - If fails: diagnose, fix, retry (max 2 attempts)
-      - If still fails: mark step status → `"fail"`, document failure, continue to next step
-   d. **Run anchor set** (if any anchors exist) — verify no regressions
-   e. Commit, mark step status → `"pass"`
+      - If still fails: mark step status → `"fail"`, revert uncommitted changes, document failure, continue to next step (do NOT commit broken code)
+   d. **Run anchor set** (if any anchors exist, and step c passed) — verify no regressions
+   e. Commit, mark step status → `"pass"` (only reached if verification passed)
 
 3. After all steps, run the project's full test suite + lint (if available).
 

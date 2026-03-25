@@ -340,7 +340,7 @@ Run sequentially: code review first, then visual check.
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
-   - Implementation includes UI-related file changes (check `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base <baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
+   - Implementation includes UI-related file changes (check `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base origin/<baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
 
    **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
    **Any false** → update state.json: phase → PR, proceed to Phase 7
