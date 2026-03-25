@@ -281,6 +281,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - For each step, extract the relevant `designSection` content from tech-design.md (if exists; for simple tasks, use step description directly)
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
    - **`conventionFiles`**: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths discovered in PLAN step 2
+   - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3b (so implementer can ignore them during anchor checks)
    - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
 4. Invoke `@agent-dev:implementer` with the built prompt
 5. Parse the returned summary:
@@ -333,7 +334,7 @@ Run sequentially: code review first, then visual check.
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
-   - Implementation includes UI-related file changes (check `git diff --name-only $(git -C <projectDir> merge-base <baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
+   - Implementation includes UI-related file changes (check `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base <baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
 
    **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
    **Any false** → update state.json: phase → PR, proceed to Phase 7
@@ -385,7 +386,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 6. **Decision**:
    - **MATCH or PARTIAL (minor)**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
-     a. Run the project's verified build/lint command (from PLAN step 3) to ensure fix didn't break types/lint
+     a. Run the project's verified build command (from PLAN step 3) AND lint command (from CLAUDE.md — lint may be separate from build) to ensure fix didn't break types or lint
      b. `git commit` the visual fix
      c. Re-capture browser screenshot, re-compare (max 1 round)
    - Still mismatched after fix: phase → PR with visual notes in PR body
@@ -411,13 +412,13 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
    ### Solution
    <solution>
    ## Technical Approach
-   <from tech-design.md summary>
+   <from tech-design.md summary — or "Direct implementation (simple task)" if no design>
    ## Changes
    <git diff --stat>
    ## Verification
    - Tests: <result>
    - Lint: <result>
-   - Design review: <N>/100
+   - Design review: <N>/100 (or "skipped — simple task" if no design phase)
    - Code review: <N>/100
    ## Acceptance Criteria
    <from code-review.json requirementsCoverage>

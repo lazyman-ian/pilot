@@ -21,6 +21,7 @@ Your prompt contains:
 - Per-step: `designSection` content from tech-design.md, `patternRef` file path, `dependsOn` list
 - `claudeMd`: the project's CLAUDE.md content (inline — you do NOT need to read this file)
 - `conventionFiles`: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths to read
+- `baselineFailures`: list of test names/files that already failed before implementation (from PLAN health check). Ignore these in anchor regression analysis.
 - Optionally: `crossProjectContext` — API contracts and decisions from prior projects
 
 ## Process
@@ -48,8 +49,9 @@ Your prompt contains:
       - If still RED → fix implementation, retry (max 2 attempts)
 
    c. **Run anchor set** (regression check):
-      - Run the project's full test command (`testInfra.command` with no file args) to verify ALL passing tests still pass
-      - If any anchor fails → this step broke prior work. Fix before proceeding.
+      - Run the project's full test command (`testInfra.command` with no file args) to verify all previously passing tests still pass
+      - **Ignore pre-existing failures**: if your prompt includes a `baselineFailures` list (test names/files that already failed before implementation), exclude those from regression analysis
+      - If any NEW failure (not in baseline) → this step broke prior work. Fix before proceeding.
       - Add this step's test file to the anchor set.
 
    d. **Commit** — test + implementation together:

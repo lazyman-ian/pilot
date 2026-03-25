@@ -26,7 +26,7 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
 2. Run from project dir:
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`
 3. Read `<CWD>/.agent-dev/requirement.json` for acceptance criteria
-4. Read `<CWD>/.agent-dev/tech-design.md` for intended approach
+4. Read `<CWD>/.agent-dev/tech-design.md` for intended approach (if it exists — simple tasks skip DESIGN; fall back to `requirement.json` + `plan.json`)
 5. Read `<CWD>/.agent-dev/plan.json` — verify each planned step was implemented:
    - Check that every step's files exist and were modified in the diff
    - If the plan includes a test step, verify test files were created or modified (extending an existing test file is valid)
