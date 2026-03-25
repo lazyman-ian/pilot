@@ -19,12 +19,19 @@ Read the target project's `CLAUDE.md` and `.claude/` docs to understand conventi
 Verify each claim against the actual codebase AND project documentation:
 
 1. **REQUIREMENT COVERAGE**: Every acceptance criterion → design element? List gaps.
-2. **PATTERN CONSISTENCY**: Follows existing codebase patterns? Flag unjustified deviations.
-3. **SCOPE CREEP**: Minimum change that solves the problem? Flag extras.
-4. **SECURITY**: Injection, auth bypass, data exposure, XSS risks?
-5. **DATA MODEL**: Migration risks? Backward compatibility?
-6. **PERFORMANCE**: N+1 queries, missing indexes, unnecessary re-renders?
-7. **TESTABILITY**: Can each change be verified?
+2. **UNGROUNDED ASSUMPTIONS** (CRITICAL — check this BEFORE anything else):
+   - Read requirement.json carefully. For EVERY API change, new field, cross-system contract, or backend expectation in the design, ask: **"Does the requirement actually demand this?"**
+   - If the design introduces an API field, endpoint, or data flow that no AC mentions → flag as `[CRITICAL] Ungrounded assumption`
+   - Check the API Changes section for `[ASSUMPTION]` tags — these are self-declared guesses. Verify they are genuinely needed or flag for removal.
+   - A design that invents a plausible API contract not in the requirements is WORSE than one that misses a detail — it causes all downstream phases to build on a false premise.
+3. **SCOPE CREEP**: Minimum change that solves the problem? Flag extras. Specifically:
+   - Does the design add cross-system coupling (new API fields, backend changes) that the requirement doesn't demand?
+   - Could the requirement be satisfied with client-side-only changes?
+4. **PATTERN CONSISTENCY**: Follows existing codebase patterns? Flag unjustified deviations.
+5. **SECURITY**: Injection, auth bypass, data exposure, XSS risks?
+6. **DATA MODEL**: Migration risks? Backward compatibility?
+7. **PERFORMANCE**: N+1 queries, missing indexes, unnecessary re-renders?
+8. **TESTABILITY**: Can each change be verified?
 
 ## Output Format (MUST follow exactly)
 

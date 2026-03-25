@@ -34,10 +34,26 @@ Search ONLY within the target project directory provided in your prompt.
    - ONLY read API interface/type definitions from related projects
    - Do NOT deep-analyze other projects — just check API contracts
 
+## MANDATORY: Separate Facts from Assumptions
+
+Every design decision must be traceable to either the **requirement** or the **existing codebase**.
+This is the #1 cause of design review failures: inventing plausible-sounding contracts that nobody asked for.
+
+**Rules:**
+- If the requirement says "send group info to backend for routing" → design the API field. That's a requirement.
+- If the requirement says "tag analytics events with group" → that's client-side only. Do NOT invent a backend API field unless the requirement explicitly demands it.
+- If you believe an API change is *needed* but it's not in the requirements → put it in **Risks & Open Questions** as an assumption, NOT in the main design as a fact.
+- Never introduce cross-system contracts (new API fields, new backend expectations, new database columns) based on your inference alone. These require explicit requirement backing or must be flagged as open questions.
+
+In the **API Changes** section, tag each change:
+- `[FROM REQ]` — directly stated in or implied by acceptance criteria
+- `[ASSUMPTION]` — you believe this is needed but it's not in the requirements
+
+If there are zero `[FROM REQ]` API changes, write "No API changes required" — do not fabricate them.
+
 ## MANDATORY: Verify Before You Claim
 
 DO NOT reference any component, utility, or API without verifying it first.
-This is the #1 cause of design review failures.
 
 You have LSP (Language Server Protocol) available. USE IT for verification — it's faster
 and more accurate than manually reading files.
