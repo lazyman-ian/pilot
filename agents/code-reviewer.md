@@ -30,7 +30,7 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    - Check that every step's files exist and were modified in the diff
    - If the plan includes a test step, verify test files were created
    - Flag any planned step that appears missing from the implementation
-6. Run project's test and lint commands (from claudeMd)
+6. Run project's test and lint commands (use `testInfra.command` and `verificationCommand` from step 1; fall back to claudeMd only if those are absent)
 7. Run lint on changed files if lint tool is available
 
 ## Review Criteria

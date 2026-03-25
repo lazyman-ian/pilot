@@ -189,6 +189,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "baseBranch": "main",
      "branchName": "feat/<slug>",
      "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
+     "verificationCommand": "pnpm vtsc:app",
+     "conventionFiles": [".claude/rules/vue-conventions.md", ".claude/steering/tech.md"],
      "steps": [
        {
          "index": 1,
@@ -297,7 +299,7 @@ Run sequentially: code review first, then visual check.
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
-   - Implementation includes UI-related file changes (check `git diff --name-only <baseBranch>..HEAD | grep -E '\.(vue|scss|css)$'`)
+   - Implementation includes UI-related file changes (check `git diff --name-only $(git -C <projectDir> merge-base <baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
 
    **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
    **Any false** → update state.json: phase → PR, proceed to Phase 7
