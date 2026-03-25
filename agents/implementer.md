@@ -3,7 +3,7 @@ name: implementer
 description: >
   Implement planned code changes step by step with JIT file reading and commits.
   Trigger: after plan approved, executing implementation steps.
-model: sonnet
+model: opus
 tools: Read, Write, Edit, Bash, Glob, Grep, LSP
 ---
 
