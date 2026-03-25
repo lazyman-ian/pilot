@@ -186,7 +186,10 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)
    - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
    - If found → record test command (e.g., `pnpm vitest run`) and example test file paths as patterns
-5. Read `.agent-dev/tech-design.md`, break into atomic steps:
+5. **Build step list** from available context:
+   - **Standard/Complex** (tech-design.md exists): read `.agent-dev/tech-design.md`, break into atomic steps
+   - **Simple** (no tech-design.md): read `.agent-dev/requirement.json` directly, derive 1-3 steps from the ACs + affected files. Grep codebase to identify exact files to modify. No architecture doc needed for simple changes.
+   Break into atomic steps:
    - VERIFY_ONLY steps: use the build/lint command from step 3 as `verification`
    - TESTABLE steps: use the **test command** from step 4 targeting the step's test file as `verification`
      (e.g., `pnpm vitest run packages/store/__tests__/myhome.test.ts` or `./gradlew test --tests "com.example.MyTest"`)
@@ -267,7 +270,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
 Delegate to `@agent-dev:implementer` — a subagent with fresh context that implements
 all steps using JIT file reading (reads real code before each step, not predictions).
 
-1. Read `.agent-dev/plan.json` and `.agent-dev/tech-design.md`
+1. Read `.agent-dev/plan.json` and `.agent-dev/tech-design.md` (if exists — simple tasks skip DESIGN)
 2. Read `<projectDir>/CLAUDE.md` (the implementer subagent cannot auto-load it)
 3. Build the implementer prompt:
    - `projectDir`: absolute path
@@ -275,16 +278,17 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - `baseBranch`: from plan.json (needed for anchor recovery after compaction)
    - `steps`: the full steps array from plan.json (includes testability + testSpec per step)
    - `testInfra`: from plan.json (test command + framework; null if no test infra)
-   - For each step, extract the relevant `designSection` content from tech-design.md
+   - For each step, extract the relevant `designSection` content from tech-design.md (if exists; for simple tasks, use step description directly)
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
    - **`conventionFiles`**: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths discovered in PLAN step 2
    - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
 4. Invoke `@agent-dev:implementer` with the built prompt
 5. Parse the returned summary:
+   - `STEP_STATUSES` → update plan.json: set each step's `status` field to `"pass"` or `"fail"` as reported
    - `COMPLETED_STEPS` → update state.json: completedSteps
    - `SKIPPED_STEPS` → log warnings
    - `ISSUES` → if any design/code discrepancies, log them for code review
-6. **Update plan.json step statuses**: set each completed step's `status` to `"pass"`, failed/skipped to `"fail"`. Verify no steps remain `"pending"` — if any do, the implementer missed them.
+6. **Validate plan.json step statuses**: verify no steps remain `"pending"` — if any do, the implementer missed them.
 7. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
 8. Update state.json: phase → CODE_REVIEW
 
