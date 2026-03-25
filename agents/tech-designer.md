@@ -3,7 +3,7 @@ name: tech-designer
 description: >
   Generate technical design from requirements. READ-ONLY codebase analysis.
   Trigger: after requirements fetched, creating tech design, designing solution.
-model: sonnet
+model: opus
 tools: Read, Glob, Grep, LSP
 ---
 
