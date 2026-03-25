@@ -271,26 +271,26 @@ this file — it is the audit trail that visual check was attempted.
 
 YOU do this directly using Figma MCP + Chrome DevTools MCP.
 
-**Project-specific setup**: Read `<projectDir>/CLAUDE.md` and `<projectDir>/.claude/docs/`
-for dev server commands, test URLs, environment setup, auth requirements, and viewport config.
-Do NOT hardcode any project-specific details here — discover them from the project's own docs.
+1. **Re-read project docs** (may have been compacted since PLAN phase):
+   - Read `<projectDir>/CLAUDE.md` for dev server command, environment setup, test URLs
+   - Read `.claude/steering/*.md` or `.claude/docs/` if they exist — check for auth flow, viewport config
+   - Do NOT hardcode any project-specific details — discover them from the project's own docs
 
-1. **Get Figma design screenshot**:
+2. **Get Figma design screenshot**:
    - Use Figma MCP `get_screenshot` with the fileKey and nodeId from requirement.json
 
-2. **Render and capture browser screenshot**:
-   - Read project docs for: dev server command, environment setup, test page URL
-   - Start dev server, navigate to the affected page, emulate correct viewport
+3. **Render and capture browser screenshot**:
+   - Start dev server (command from CLAUDE.md), navigate to the affected page, emulate correct viewport
    - Use Chrome DevTools MCP to take screenshot
    - Optionally: run Lighthouse audit if SEO/performance is a requirement
    - Stop dev server after capture
 
-3. **Compare** (use your vision capability):
+4. **Compare** (use your vision capability):
    - Layout, spacing, colors, typography, component positioning
    - Compare against Figma design tokens from requirement.json
    - Check responsive behavior matches design breakpoint
 
-4. **Write** to `.agent-dev/visual-review.json`:
+5. **Write** to `.agent-dev/visual-review.json`:
    ```json
    {
      "matches": ["layout correct", "colors match tokens"],
@@ -301,7 +301,7 @@ Do NOT hardcode any project-specific details here — discover them from the pro
    }
    ```
 
-5. **Decision**:
+6. **Decision**:
    - **MATCH or PARTIAL (minor)**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
      a. Run project verification (`tsc --noEmit` + lint) to ensure fix didn't break types/lint
