@@ -1,6 +1,6 @@
 {
   "name": "agent-dev",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Autonomous development pipeline: Notion requirement → draft PR. Orchestrates multi-phase workflow with independent design review, quality gates, and structured state management.",
   "author": {
     "name": "HouseSigma",

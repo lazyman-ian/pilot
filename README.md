@@ -277,35 +277,146 @@ Legend:
 ## Architecture
 
 - **4 Opus subagents** with isolated contexts: tech-designer, design-reviewer, implementer, code-reviewer
-- **Parent is a pure orchestrator** — never reads/writes project code directly, stays lightweight
-- **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md inline + conventionFiles + testInfra + verificationCommand into subagent prompts. All persisted in plan.json for resume safety
-- **SDD + AC-driven TDD** — architecture decisions in DESIGN (SDD), TDD for testable steps in IMPLEMENT (BDD). Steps classified TESTABLE vs VERIFY_ONLY during PLAN
-- **TDD with anchor set** — TESTABLE steps: write test first (RED) → implement (GREEN) → run all anchors (regression check). Based on AlphaCodium test anchor pattern
-- **Multi-project support** — auto-transitions between projects in queue; per-project timing/metrics reset on transition
-- **Design review** in isolated Opus context (anti-sycophancy by architecture)
-- **Visual check** compares Figma screenshots vs browser screenshots (gate: .vue/.scss/.css via merge-base; mandatory when gate passes; writes SKIPPED verdict if can't complete)
-- **Quality gates** — PLAN verifies commands work (dry-run); code-reviewer checks PLAN_COVERAGE + TEST_COVERAGE; APPROVE requires test+lint PASS
-- **Gate scripts** enforce pipeline ordering (exit code 2 blocks)
-- **State persistence** in `.agent-dev/state.json` + plan.json for crash recovery
+- **Parent is a pure orchestrator** — never reads/writes project code directly
+- **SDD + AC-driven TDD** — specifications drive design, acceptance criteria drive tests. TESTABLE steps use RED→GREEN with anchor set; VERIFY_ONLY steps use build verification
+- **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md + conventionFiles + validated commands. All persisted in plan.json for resume safety
+- **Complexity routing** — simple tasks (≤3 ACs) skip DESIGN+REVIEW for faster turnaround
+- **Multi-project** — auto-transitions between projects; per-project metrics reset; cross-project-summary.md carries API contracts
+- **Visual check** — Figma vs browser screenshot comparison via merge-base (.vue/.scss/.css gate); writes SKIPPED verdict if can't complete
+- **Quality gates** — environment health check, RUBRIC_SCORES (4 dimensions × /10), PLAN_COVERAGE, TEST_COVERAGE, baseline-aware test evaluation
+- **Gate scripts** — hook enforcement (exit 2 blocks), not prompt instructions
+
+## Usage Guide
+
+### Starting a Pipeline
+
+```bash
+# Recommended: run from the target project directory
+cd ~/housesigma/web-hybrid
+claude
+/agent-dev https://notion.so/your-requirement-page
+
+# Or from monorepo root (multi-project)
+cd ~/housesigma
+claude
+/agent-dev https://notion.so/your-requirement-page
+```
+
+### What Happens Next
+
+The pipeline runs fully autonomously. You'll see phase transitions logged:
+
+```
+需求: Claim Homes | 平台: web-hybrid, ios, android | AC: 15 条 | Figma: 有
+项目: web-hybrid | 分支: feat/claim-homes | 步骤: 8
+✅ web-hybrid PR: https://github.com/.../pull/321 (score: 90)
+✅ ios PR: https://github.com/.../pull/28 (score: 100)
+✅ android PR: https://github.com/.../pull/26 (score: 100)
+Pipeline 完成. 清理 .agent-dev/ 文件？
+```
+
+### When It Stops
+
+The pipeline only stops to ask you in three cases:
+1. **ESCALATE** — design review or code review has unresolvable issues
+2. **Completion** — all PRs created, asks to clean up
+3. **Unrecoverable error** — environment broken, MCP auth expired
+
+### Monitoring a Running Pipeline
+
+From another terminal:
+```bash
+# Check current state
+cat ~/housesigma/.agent-dev/state.json | jq '{phase, targetProject, completedSteps}'
+
+# Watch for stalls (macOS notification after 10 min)
+bash /path/to/agent-dev/scripts/health-check.sh ~/housesigma/.agent-dev/state.json
+
+# View telemetry
+column -t -s $'\t' ~/.agent-dev-telemetry.tsv
+```
+
+### Resuming After Interruption
+
+```bash
+# Automatically detects state.json and continues
+/agent-dev resume
+
+# Or just start Claude in the same directory — post-compact-resume.sh auto-recovers
+```
+
+### Pipeline Artifacts
+
+```
+.agent-dev/
+├── state.json                 ← pipeline state machine
+├── requirement.json           ← fetched requirements (shared)
+├── tech-design.md             ← architecture design (current project)
+├── review.json                ← design review verdict
+├── plan.json                  ← implementation plan with testability + validated commands
+├── code-review.json           ← code review with RUBRIC_SCORES
+├── visual-review.json         ← visual check result (if applicable)
+├── cross-project-summary.md   ← API contracts + decisions (multi-project)
+└── completed/                 ← archived per-project artifacts + telemetry markers
+```
+
+## Configuration
+
+### For the Plugin (MCP Servers)
+
+`.mcp.json` — automatically loaded by Claude Code:
+```json
+{
+  "mcpServers": {
+    "notion": { "command": "npx", "args": ["-y", "@anthropic/notion-mcp"] },
+    "figma": { "command": "npx", "args": ["-y", "@anthropic/figma-mcp"] },
+    "chrome-devtools": { "command": "npx", "args": ["-y", "@anthropic/chrome-devtools-mcp"] }
+  }
+}
+```
+
+### For Target Projects
+
+Each project customizes pipeline behavior via its own `.claude/` directory:
+
+| Directory | Purpose | Who Reads It |
+|-----------|---------|-------------|
+| `CLAUDE.md` | Build/test/lint commands, project overview | All subagents (injected by parent) |
+| `.claude/rules/*.md` | Coding conventions, must-follow rules | implementer + code-reviewer (injected) |
+| `.claude/steering/*.md` | Architecture, tech stack, patterns | implementer + code-reviewer (injected) |
+| `.claude/docs/*.md` | Setup, auth flow, environment notes | implementer + code-reviewer (injected) |
+
+**To adopt BDD/Gherkin** in a project: install a BDD framework, add `.claude/rules/testing.md` with BDD conventions, and ensure existing `.feature` files can serve as `testPatternRef`. The pipeline automatically follows whatever test pattern the project uses.
+
+### Telemetry
+
+Pipeline runs are scored and logged to `~/.agent-dev-telemetry.tsv`:
+
+| Component | Points | Scoring |
+|-----------|--------|---------|
+| Completion | 40 | Ran to PR/COMPLETED |
+| Low interventions | 30 | 0 asks = 30, each -10 |
+| Design first-pass | 15 | 1 round = 15, each extra -5; 0 if skipped |
+| Code review first-pass | 15 | 1 round = 15, each extra -5 |
+
+```bash
+# View telemetry
+column -t -s $'\t' ~/.agent-dev-telemetry.tsv
+
+# Filter by project
+grep 'web-hybrid' ~/.agent-dev-telemetry.tsv | column -t -s $'\t'
+```
 
 ## Design Principles
 
 1. **Scripts > Prompts** — Critical gates enforced by hook scripts, not prompt instructions
-2. **Architecture decisions upfront, implementation JIT** — tech-designer decides WHAT, implementer discovers HOW by reading real code
-3. **SDD + AC-driven TDD** — Specifications drive design, acceptance criteria drive tests. TESTABLE steps use RED→GREEN TDD; VERIFY_ONLY steps use build verification. Projects can adopt BDD (Gherkin) via their own `.claude/rules/` — pipeline is convention-agnostic
+2. **Architecture upfront, implementation JIT** — tech-designer decides WHAT, implementer discovers HOW by reading real code
+3. **SDD + AC-driven TDD** — Specifications drive design, acceptance criteria drive tests. Convention-agnostic — projects choose their test framework
 4. **Context isolation** — Each subagent gets fresh context; parent never accumulates implementation details
-5. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files in PLAN and injects them. Validated commands persist in plan.json
-6. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
-7. **Plan = contract** — Code-reviewer verifies every planned step was implemented (PLAN_COVERAGE) and every testable step has tests (TEST_COVERAGE)
-8. **MCP-first integration** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
-
-## Telemetry
-
-Every pipeline run is scored (0-100) and logged to `~/.agent-dev-telemetry.tsv`:
-- Completion: 40 pts
-- Low interventions: 30 pts (0 human asks = 30, each -10)
-- Design first-pass: 15 pts (1 round = 15, each extra -5)
-- Code review first-pass: 15 pts (1 round = 15, each extra -5)
+5. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files and injects them. Validated commands persist in plan.json
+6. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions
+7. **Plan = contract** — Code-reviewer verifies PLAN_COVERAGE + TEST_COVERAGE + RUBRIC_SCORES
+8. **MCP-first** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
 
 ## License
 

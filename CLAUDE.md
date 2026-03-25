@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A Claude Code **plugin** (`claude plugin install github:housesigma/agent-dev`) that adds an autonomous development pipeline. Given a Notion requirement URL, it autonomously fetches requirements, designs a technical approach, reviews the design, implements code, reviews the code, and creates a draft PR — all without human intervention unless escalation is needed.
+A Claude Code **plugin** (`claude plugin install github:housesigma/agent-dev`) that adds an autonomous development pipeline. Given a Notion requirement URL, it autonomously fetches requirements, designs a technical approach, reviews the design, implements code (with TDD for testable steps), reviews the code, and creates a draft PR — all without human intervention unless escalation is needed.
 
 ## Project Structure
 
@@ -32,56 +32,106 @@ scripts/                      ← Shell scripts for gates, health checks, contex
 
 ## Architecture
 
-### Pipeline: 8 Phases
+### Pipeline Phases
 
-FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW (+VISUAL_CHECK) → PR [→ PROJECT_TRANSITION → repeat]
+```
+FETCH → RESOLVE → [DESIGN → REVIEW →] PLAN → IMPLEMENT → CODE_REVIEW (+VISUAL_CHECK) → PR [→ PROJECT_TRANSITION → repeat]
+```
 
-- **Parent agent** (lightweight orchestrator) executes phases 1, 1.5, 4, 7, 8 directly
-- **Subagents** execute phases 2, 3, 5, 6 — parent MUST persist their output to `.agent-dev/` files immediately
-- State machine in `.agent-dev/state.json` tracks progress; all artifacts live in CWD's `.agent-dev/`
-- **Multi-project**: after PR, pipeline auto-transitions to next project in queue via PROJECT_TRANSITION
+- Phases in brackets are skipped for **simple** tasks (≤3 ACs, 1-3 files)
+- **Parent agent** (lightweight orchestrator) executes FETCH, RESOLVE, PLAN, PR, PROJECT_TRANSITION directly
+- **4 Opus subagents** execute DESIGN, REVIEW, IMPLEMENT, CODE_REVIEW — parent persists their output to `.agent-dev/` files immediately
+- State machine in `.agent-dev/state.json` tracks progress; all artifacts in CWD's `.agent-dev/`
+- **Multi-project**: after PR, auto-transitions to next project in queue via PROJECT_TRANSITION
 
 ### Context Boundary Design
 
 Agents are split by **what context they need**, not by role:
-- `tech-designer` (Opus): needs codebase read access, produces architecture-level design + testable components table — reads project docs itself
+- `tech-designer` (Opus): codebase read access, produces architecture design + testable components table — reads project docs itself
 - `design-reviewer` (Opus): isolated context for anti-sycophancy — reads project docs itself
-- `implementer` (Opus): fresh context per project, TDD for TESTABLE steps (RED→GREEN + anchor set), JIT for VERIFY_ONLY steps — receives CLAUDE.md inline + convention file paths + testInfra from parent
-- `code-reviewer` (Opus): needs Bash for tests/lint — receives CLAUDE.md + conventionFiles + testInfra + verificationCommand, checks plan coverage + test coverage
+- `implementer` (Opus): fresh context per project, TDD (RED→GREEN + anchors) for TESTABLE steps, JIT for VERIFY_ONLY — receives injected project docs from parent
+- `code-reviewer` (Opus): Bash for tests/lint — receives injected project docs + validated commands, checks plan/test/AC coverage
 - Parent is a pure orchestrator — never reads/writes project code directly
 
-**Subagents don't auto-load project docs** (.claude/rules, CLAUDE.md, steering). Parent injects CLAUDE.md content inline and .claude/ file paths into implementer/code-reviewer prompts. Tech-designer and design-reviewer discover docs as part of their codebase analysis.
+**Subagent context injection**: Subagents don't auto-load project docs. Parent injects CLAUDE.md content inline + .claude/ file paths + validated commands (verificationCommand, lintCommand, testInfra) into implementer/code-reviewer prompts. All persisted in plan.json for resume safety.
 
 ### Enforcement: Scripts > Prompts
 
-Critical gates are enforced by hook scripts with `exit 2` (block), not by prompt instructions:
+Critical gates enforced by hook scripts with `exit 2` (block):
 - **Pre-PR gate** (`agent-dev-gate.sh pre-pr`): blocks `gh pr create` unless pipeline is in PR phase
 - **Stop hook** (`stop-hook.sh`): prevents session exit mid-pipeline (session-isolated, anti-loop with 3-attempt limit)
 - **Session patching** (`patch-state-session.sh`): auto-injects `sessionId` on every `state.json` write
-- **Post-compact resume** (`post-compact-resume.sh`): restores pipeline context after context compaction
-
-### MCP Integration
-
-Notion, Figma, and Chrome DevTools are accessed via MCP. MCP auth does NOT propagate to subagents — the parent does FETCH directly.
+- **Post-compact resume** (`post-compact-resume.sh`): restores pipeline context after compaction
 
 ### Quality Gates
 
-- **PLAN phase**: verifies build/test/lint commands work (dry-run); detects test infrastructure; classifies steps as TESTABLE vs VERIFY_ONLY; persists conventionFiles + verificationCommand in plan.json for resume safety
-- **Implementer TDD**: TESTABLE steps follow RED→GREEN with anchor set regression protection; VERIFY_ONLY steps use build verification only
-- **Code-reviewer**: reads plan.json and verifies each step was implemented (PLAN_COVERAGE); checks TESTABLE steps have corresponding test files (TEST_COVERAGE); uses validated commands from PLAN, not raw CLAUDE.md
-- **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue/.scss/.css via merge-base); cannot silently skip — must write visual-review.json even if SKIPPED
+- **PLAN**: environment health check (build + existing tests), command validation (dry-run), test infrastructure detection, step testability classification, convention file discovery. All persist in plan.json
+- **Implementer TDD**: TESTABLE steps follow RED→GREEN with anchor set regression protection; VERIFY_ONLY steps use build verification; pre-existing failures exempted via baselineFailures/baselineBuildFailure
+- **Code-reviewer**: RUBRIC_SCORES (Correctness/Completeness/Convention/Regression each X/10), PLAN_COVERAGE, TEST_COVERAGE, REQUIREMENTS_COVERAGE. Uses validated commands from PLAN (not raw CLAUDE.md). Baseline-aware test evaluation.
+- **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue/.scss/.css via merge-base); writes visual-review.json even if SKIPPED; post-fix runs build + lint + tests
+
+### Complexity Routing
+
+RESOLVE classifies requirements:
+- **Simple** (≤3 ACs, 1-3 files, bug fix): skip DESIGN+REVIEW → PLAN directly
+- **Standard** (new feature, multiple components): full pipeline
+- **Complex** (multi-project, new architecture): full pipeline
+
+### MCP Integration
+
+Notion, Figma, and Chrome DevTools accessed via MCP. MCP auth does NOT propagate to subagents — parent does FETCH directly.
 
 ### Telemetry
 
-Every pipeline run appends a row to `~/.agent-dev-telemetry.tsv` (autoresearch-inspired experiment log).
+Every pipeline run appends a row to `~/.agent-dev-telemetry.tsv`:
 
 **Score formula** (0-100):
-- Completion: 40 pts (ran to COMPLETED)
+- Completion: 40 pts (ran to COMPLETED/PR/PROJECT_TRANSITION)
 - Low interventions: 30 pts (0 human asks = 30, each -10)
-- Design first-pass: 15 pts (1 round = 15, each extra round -5)
-- Code review first-pass: 15 pts (1 round = 15, each extra round -5)
+- Design first-pass: 15 pts (1 round = 15, each extra -5; 0 if design was skipped)
+- Code review first-pass: 15 pts (1 round = 15, each extra -5)
 
-`state.json` tracks `metrics.interventions` (incremented on ESCALATE or user-ask) and `metrics.completedAt`. The `write-telemetry.sh` script computes the score and writes the TSV row.
+Multi-project: one telemetry row per project (idempotent via marker file). Per-project timing reset on transition.
+
+## Configuration
+
+### MCP Servers (.mcp.json)
+
+```json
+{
+  "mcpServers": {
+    "notion": { "command": "npx", "args": ["-y", "@anthropic/notion-mcp"] },
+    "figma": { "command": "npx", "args": ["-y", "@anthropic/figma-mcp"] },
+    "chrome-devtools": { "command": "npx", "args": ["-y", "@anthropic/chrome-devtools-mcp"] }
+  }
+}
+```
+
+### LSP Servers (.lsp.json)
+
+```json
+{
+  "lspServers": {
+    "typescript": { "command": "typescript-language-server", "args": ["--stdio"] },
+    "swift": { "command": "sourcekit-lsp" },
+    "kotlin": { "command": "kotlin-language-server" },
+    "php": { "command": "intelephense", "args": ["--stdio"] }
+  }
+}
+```
+
+### Project-Level Configuration
+
+Each target project can customize pipeline behavior via its own `.claude/` directory:
+
+| Directory | Purpose | Effect on Pipeline |
+|-----------|---------|-------------------|
+| `.claude/rules/*.md` | Coding conventions | Injected into implementer + code-reviewer prompts |
+| `.claude/steering/*.md` | Architecture/tech stack docs | Injected into implementer + code-reviewer prompts |
+| `.claude/docs/*.md` | Setup, auth, environment notes | Injected into implementer + code-reviewer prompts |
+| `CLAUDE.md` | Build/test/lint commands | Injected inline into all subagent prompts |
+
+Projects can adopt BDD (Gherkin) by putting BDD conventions in `.claude/rules/` and having existing `.feature` files as test pattern references — the pipeline is convention-agnostic.
 
 ## Development
 
@@ -123,14 +173,14 @@ The plugin is designed for HouseSigma's monorepo structure:
 └── realagent-datafeed/            (PHP, Phalcon)
 ```
 
-Each sub-project is an independent git repo. The monorepo root is NOT a git repo. `.agent-dev/` artifacts always live in CWD (monorepo root), never inside sub-projects.
+Each sub-project is an independent git repo. The monorepo root is NOT a git repo. `.agent-dev/` artifacts always live in CWD, never inside sub-projects.
 
 ## Key Conventions
 
 - **Commit format**: `type(scope): description` (imperative, lowercase, no period, <72 chars)
 - **Branch naming**: `feat/<slug>` or `fix/<slug>` from requirement title
 - **Pipeline is fully autonomous**: never stops to ask the user unless review ESCALATES or unrecoverable error
-- **Each implementation step = one commit**: atomic undo points
+- **Each implementation step = one commit**: atomic undo points (test + code together for TESTABLE steps)
 - **PRs are always draft**: never merge automatically
 - **Subagent namespace**: always use `@agent-dev:tech-designer` (with plugin prefix), not `@tech-designer`
 - **LSP caveat**: do NOT use LSP on `.vue` files (hangs); only use on `.ts/.js/.tsx/.jsx`
