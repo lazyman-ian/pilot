@@ -178,7 +178,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
 3. **Environment health check** — verify the project builds and existing tests pass BEFORE planning:
    a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
       - If the command from CLAUDE.md doesn't exist, find the underlying command and use that instead
-      - If build fails on the clean branch → something is broken before we start. Log warning, proceed with caution.
+      - If build fails on the clean branch → record as `baselineBuildFailure: true` in plan.json. VERIFY_ONLY steps and code review should treat pre-existing build failures the same way as baselineFailures for tests.
    b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
    c. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too.
@@ -452,12 +452,9 @@ Transition from one completed project to the next in the queue.
 1. **Set completion time** (if not already set — idempotent for resume): update state.json `metrics.completedAt` → current ISO timestamp
 2. **Write telemetry** (only if not already written — check if `.agent-dev/completed/<targetProject>.telemetry` marker exists):
    ```bash
-   mkdir -p .agent-dev/completed
-   MARKER=".agent-dev/completed/${targetProject}.telemetry"
-   if [ ! -f "$MARKER" ]; then
-     bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
-     touch "$MARKER"
-   fi
+   Write telemetry if not already written for this project:
+   - Check if `.agent-dev/completed/<targetProject>.telemetry` marker exists (use the targetProject value from state.json)
+   - If not: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`, then create the marker file
    ```
    Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 

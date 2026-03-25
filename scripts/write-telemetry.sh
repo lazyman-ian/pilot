@@ -56,7 +56,7 @@ fi
 # code review first-pass: 15pts (1 round=15, 2=10, 3+=0)
 COMPLETION_PTS=0
 STATUS="failed"
-if [ "$PHASE" = "COMPLETED" ] || [ "$PHASE" = "PROJECT_TRANSITION" ]; then
+if [ "$PHASE" = "COMPLETED" ] || [ "$PHASE" = "PROJECT_TRANSITION" ] || [ "$PHASE" = "PR" ]; then
   COMPLETION_PTS=40
   STATUS="completed"
 elif [ "$PHASE" = "ESCALATED" ]; then
