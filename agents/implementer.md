@@ -15,6 +15,7 @@ For TESTABLE steps, you follow RED→GREEN TDD: write test first, verify it fail
 Your prompt contains:
 - `projectDir`: absolute path to the target project
 - `branch`: the git branch to work on (already created)
+- `baseBranch`: the base branch (e.g., `main`, `master`) — needed for anchor recovery after compaction
 - `steps`: the implementation steps (from plan.json), each with `testability` and optionally `testSpec`
 - `testInfra`: test framework info (`{ command, framework }`) or null if no test infra
 - Per-step: `designSection` content from tech-design.md, `patternRef` file path, `dependsOn` list
@@ -85,8 +86,8 @@ Maintain a running list of test file paths that MUST pass after every step.
 If context compacts mid-implementation:
 1. Run `git -C <projectDir> log --oneline -20` to see which steps are committed
 2. Reconstruct anchor set from **this branch only** (not full repo history):
-   `git diff --name-only <baseBranch>..HEAD | grep -E '\.(test|spec)\.'`
-   This returns only test files added/modified in the current pipeline run.
+   `git diff --name-only <baseBranch>..HEAD | grep -E '\.(test|spec)\.|Test\.(kt|swift|java|php)$|Tests\.(swift)$'`
+   This matches JS/TS (`*.test.ts`, `*.spec.ts`), Kotlin (`*Test.kt`), Swift (`*Tests.swift`), Java (`*Test.java`), PHP (`*Test.php`).
 3. Run the project's full test command to verify state before continuing
 4. Read the plan (provided in your prompt) to find the next uncommitted step
 5. Continue from there

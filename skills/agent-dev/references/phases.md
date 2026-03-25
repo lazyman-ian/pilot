@@ -161,7 +161,9 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
    - If found → record test command (e.g., `pnpm vitest run`) and example test file paths as patterns
 5. Read `.agent-dev/tech-design.md`, break into atomic steps:
-   - Each step: 1-3 files, has verification command (the working one from step 3)
+   - VERIFY_ONLY steps: use the build/lint command from step 3 as `verification`
+   - TESTABLE steps: use the **test command** from step 4 targeting the step's test file as `verification`
+     (e.g., `pnpm vitest run packages/store/__tests__/myhome.test.ts` or `./gradlew test --tests "com.example.MyTest"`)
    - Order: types/schema → backend → API → frontend → tests
    - **Classify each step's `testability`**:
      - `TESTABLE`: business logic, API service, store/state, UI component with interactive behavior
@@ -239,6 +241,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
 3. Build the implementer prompt:
    - `projectDir`: absolute path
    - `branch`: from plan.json
+   - `baseBranch`: from plan.json (needed for anchor recovery after compaction)
    - `steps`: the full steps array from plan.json (includes testability + testSpec per step)
    - `testInfra`: from plan.json (test command + framework; null if no test infra)
    - For each step, extract the relevant `designSection` content from tech-design.md
@@ -270,6 +273,7 @@ Run sequentially: code review first, then visual check.
    - "Project directory: <projectDir>. Pipeline artifacts at: <CWD>/.agent-dev/"
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline)
    - **`conventionFiles`**: `.claude/rules/*.md` and `.claude/steering/*.md` paths from PLAN
+   - **`testInfra`**: from plan.json (the validated test command — code-reviewer should use this instead of raw CLAUDE.md commands)
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
@@ -398,13 +402,14 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 
 Transition from one completed project to the next in the queue.
 
-1. **Write telemetry** for the current project (before archiving, state still has this project's metrics):
+1. **Set completion time**: update state.json `metrics.completedAt` → current ISO timestamp (needed for telemetry `total_minutes` calculation)
+2. **Write telemetry** for the current project (before archiving, state still has this project's metrics):
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
    ```
    Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
-2. **Archive current project's artifacts**:
+3. **Archive current project's artifacts**:
    ```bash
    mkdir -p .agent-dev/completed
    for f in tech-design.md review.json plan.json code-review.json visual-review.json; do
@@ -412,7 +417,7 @@ Transition from one completed project to the next in the queue.
    done
    ```
 
-3. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
+4. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
    ```markdown
    ## <targetProject> (completed)
    - **PR**: <prUrl>
@@ -422,21 +427,21 @@ Transition from one completed project to the next in the queue.
    - **Shared naming**: <identifiers that other projects should match>
    ```
 
-4. **Push to completedProjects** in state.json:
+5. **Push to completedProjects** in state.json:
    ```json
    { "name": "<targetProject>", "prUrl": "<url>", "branch": "<branch>" }
    ```
 
-5. **Advance queue**: `currentProjectIndex += 1`
+6. **Advance queue**: `currentProjectIndex += 1`
 
-6. **Set new project**:
+7. **Set new project**:
    - `targetProject` = `projectQueue[currentProjectIndex]`
    - `projectDir` = resolve path (CWD/<targetProject> or CWD if matching)
    - Reset per-project fields: branch, baseBranch, reviewConfidence, reviewRevisionCount, codeReviewConfidence, codeReviewCount, currentStep, completedSteps, prUrl → null
 
-7. **Verify new project** (same as RESOLVE steps 5-6):
+8. **Verify new project** (same as RESOLVE steps 5-6):
    - Clean working tree
    - Dependencies installed
    - Read CLAUDE.md
 
-8. Update state.json: phase → DESIGN. Proceed immediately.
+9. Update state.json: phase → DESIGN. Proceed immediately.
