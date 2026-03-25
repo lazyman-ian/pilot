@@ -181,7 +181,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
       - If build fails on the clean branch → something is broken before we start. Log warning, proceed with caution.
    b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
-   c. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too
+   c. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too.
+      **Important**: use the check-only variant (no `--fix` flag) to avoid mutating the working tree before the feature branch is created
    d. Record all validated commands + baseline failures list — persist in plan.json:
       `verificationCommand` (build/typecheck), `testInfra` (test), `lintCommand` (lint, if separate), `baselineFailures`
 4. **Detect test infrastructure**:
@@ -222,7 +223,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "branchName": "feat/<slug>",
      "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
      "verificationCommand": "pnpm vtsc:app",
-     "lintCommand": "pnpm eslint --fix",
+     "lintCommand": "pnpm eslint",
      "conventionFiles": ["<projectDir>/.claude/rules/vue-conventions.md", "<projectDir>/.claude/steering/tech.md"],
      "baselineFailures": [],
      "steps": [
@@ -336,7 +337,7 @@ Run sequentially: code review first, then visual check.
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
    - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — fix the failing tests/lint, re-invoke
-   - **APPROVE + testResult=PASS + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
+   - **APPROVE + testResult=PASS (or SKIPPED if no test infra) + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
@@ -384,13 +385,13 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
      "matches": ["layout correct", "colors match tokens"],
      "mismatches": [{"element": "...", "expected": "...", "actual": "..."}],
      "lighthouse": {"performance": 95, "seo": 100},
-     "verdict": "MATCH|MISMATCH|PARTIAL",
+     "verdict": "MATCH|MISMATCH|PARTIAL|SKIPPED",
      "summary": "..."
    }
    ```
 
 6. **Decision**:
-   - **MATCH or PARTIAL (minor)**: phase → PR
+   - **MATCH, PARTIAL (minor), or SKIPPED**: phase → PR
    - **MISMATCH**: fix visual issues (CSS/template edits), then:
      a. Run the project's verified build command (from PLAN step 3) AND lint command (from CLAUDE.md — lint may be separate from build) to ensure fix didn't break types or lint
      b. `git commit` the visual fix
@@ -446,10 +447,14 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 
 Transition from one completed project to the next in the queue.
 
-1. **Set completion time**: update state.json `metrics.completedAt` → current ISO timestamp (needed for telemetry `total_minutes` calculation)
-2. **Write telemetry** for the current project (before archiving, state still has this project's metrics):
+1. **Set completion time** (if not already set — idempotent for resume): update state.json `metrics.completedAt` → current ISO timestamp
+2. **Write telemetry** (only if not already written — check if `.agent-dev/completed/<targetProject>.telemetry` marker exists):
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
+   MARKER=".agent-dev/completed/${targetProject}.telemetry"
+   if [ ! -f "$MARKER" ]; then
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"
+     touch "$MARKER"
+   fi
    ```
    Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
