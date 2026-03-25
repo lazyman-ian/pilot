@@ -44,11 +44,13 @@ FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW (
 ### Context Boundary Design
 
 Agents are split by **what context they need**, not by role:
-- `tech-designer` (Sonnet): needs codebase read access, produces architecture-level design
-- `design-reviewer` (Opus): isolated context for anti-sycophancy — reviews design independently
-- `implementer` (Sonnet): fresh context per project, JIT file reading per step — keeps parent lightweight
-- `code-reviewer` (Opus): needs Bash for tests/lint, reviews implementation against requirements
+- `tech-designer` (Sonnet): needs codebase read access, produces architecture-level design — reads project docs itself
+- `design-reviewer` (Opus): isolated context for anti-sycophancy — reads project docs itself
+- `implementer` (Sonnet): fresh context per project, JIT file reading per step — receives CLAUDE.md inline + convention file paths from parent
+- `code-reviewer` (Opus): needs Bash for tests/lint — receives CLAUDE.md inline + convention file paths, checks plan coverage
 - Parent is a pure orchestrator — never reads/writes project code directly
+
+**Subagents don't auto-load project docs** (.claude/rules, CLAUDE.md, steering). Parent injects CLAUDE.md content inline and .claude/ file paths into implementer/code-reviewer prompts. Tech-designer and design-reviewer discover docs as part of their codebase analysis.
 
 ### Enforcement: Scripts > Prompts
 
@@ -61,6 +63,12 @@ Critical gates are enforced by hook scripts with `exit 2` (block), not by prompt
 ### MCP Integration
 
 Notion, Figma, and Chrome DevTools are accessed via MCP. MCP auth does NOT propagate to subagents — the parent does FETCH directly.
+
+### Quality Gates
+
+- **PLAN phase**: verifies build/test/lint commands work before using them in steps; if design includes tests, creates a dedicated test step
+- **Code-reviewer**: reads plan.json and verifies each step was implemented (PLAN_COVERAGE output); catches missing test files
+- **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue); cannot silently skip — must write visual-review.json even if SKIPPED
 
 ### Telemetry
 

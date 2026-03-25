@@ -265,10 +265,12 @@ Legend:
 
 - **4 subagents** with isolated contexts: tech-designer (Sonnet), design-reviewer (Opus), implementer (Sonnet), code-reviewer (Opus)
 - **Parent is a pure orchestrator** — never reads/writes project code directly, stays lightweight
+- **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md inline + .claude/ convention file paths into implementer/code-reviewer prompts
 - **Multi-project support** — auto-transitions between projects in queue (e.g., web → iOS → Android)
 - **JIT implementation** — implementer reads real code before each step, not predictions from design phase
 - **Design review** in isolated Opus context (anti-sycophancy by architecture)
-- **Visual check** compares Figma screenshots vs browser screenshots using vision
+- **Visual check** compares Figma screenshots vs browser screenshots using vision (mandatory when gate passes, cannot silently skip)
+- **Quality gates** — PLAN verifies commands work, code-reviewer checks plan coverage, tests are explicit steps
 - **Gate scripts** enforce pipeline ordering (exit code 2 blocks)
 - **State persistence** in `.agent-dev/state.json` for crash recovery
 
@@ -277,8 +279,10 @@ Legend:
 1. **Scripts > Prompts** — Critical gates enforced by hook scripts, not prompt instructions
 2. **Architecture decisions upfront, implementation JIT** — tech-designer decides WHAT, implementer discovers HOW by reading real code
 3. **Context isolation** — Each subagent gets fresh context; parent never accumulates implementation details
-4. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
-5. **MCP-first integration** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
+4. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files in PLAN and injects them into subagent prompts
+5. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
+6. **Plan = contract** — Code-reviewer verifies every planned step was implemented (PLAN_COVERAGE); tests in design must become plan steps
+7. **MCP-first integration** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
 
 ## Telemetry
 
