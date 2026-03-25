@@ -212,9 +212,9 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      - `patternRef`: an existing file to follow as implementation pattern
      - `dependsOn`: which prior step indices this step depends on
 6. Detect base branch:
-   `git -C <projectDir> rev-parse --abbrev-ref origin/HEAD 2>/dev/null`
-   This returns e.g. "origin/main" — strip the "origin/" prefix.
-   Fallback: main → master
+   `git -C <projectDir> symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#refs/remotes/origin/##'`
+   This resolves the symbolic ref to the actual branch name (e.g., "main", not "HEAD").
+   Fallback: check if `origin/main` exists (`git -C <projectDir> rev-parse --verify origin/main`), else use `master`.
 7. Write `.agent-dev/plan.json`:
    ```json
    {
@@ -226,6 +226,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "lintCommand": "pnpm eslint",
      "conventionFiles": ["<projectDir>/.claude/rules/vue-conventions.md", "<projectDir>/.claude/steering/tech.md"],
      "baselineFailures": [],
+     "baselineBuildFailure": false,
      "steps": [
        {
          "index": 1,
@@ -450,15 +451,14 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 Transition from one completed project to the next in the queue.
 
 1. **Set completion time** (if not already set — idempotent for resume): update state.json `metrics.completedAt` → current ISO timestamp
-2. **Write telemetry** (only if not already written — check if `.agent-dev/completed/<targetProject>.telemetry` marker exists):
-   ```bash
-   Write telemetry if not already written for this project:
-   - Check if `.agent-dev/completed/<targetProject>.telemetry` marker exists (use the targetProject value from state.json)
-   - If not: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`, then create the marker file
-   ```
-   Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
+2. `mkdir -p .agent-dev/completed` (ensure directory exists before marker/archive)
+3. **Write telemetry** (idempotent — check marker first):
+   - If `.agent-dev/completed/<targetProject>.telemetry` marker does NOT exist (use targetProject from state.json):
+     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`
+     → Create the marker file
+   - Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
-3. **Archive current project's artifacts**:
+4. **Archive current project's artifacts**:
    ```bash
    mkdir -p .agent-dev/completed
    for f in tech-design.md review.json plan.json code-review.json visual-review.json; do
@@ -466,7 +466,7 @@ Transition from one completed project to the next in the queue.
    done
    ```
 
-4. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
+5. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
    ```markdown
    ## <targetProject> (completed)
    - **PR**: <prUrl>
@@ -476,12 +476,12 @@ Transition from one completed project to the next in the queue.
    - **Shared naming**: <identifiers that other projects should match>
    ```
 
-5. **Push to completedProjects** in state.json:
+6. **Push to completedProjects** in state.json:
    ```json
    { "name": "<targetProject>", "prUrl": "<url>", "branch": "<branch>" }
    ```
 
-6. **Atomic queue advance + new project setup** (do these together in a single state.json write to prevent partial-transition on compaction):
+7. **Atomic queue advance + new project setup** (do these together in a single state.json write to prevent partial-transition on compaction):
    - `currentProjectIndex += 1`
    - `targetProject` = `projectQueue[currentProjectIndex]`
    - `projectDir` = resolve path (CWD/<targetProject> or CWD if matching)
@@ -489,7 +489,7 @@ Transition from one completed project to the next in the queue.
    - Reset timing: `createdAt` → current ISO (new project start), `metrics.completedAt` → null, `metrics.interventions` → 0
    - phase → DESIGN (transition complete — resume from here is safe)
 
-7. **Verify new project** (same as RESOLVE steps 6-7):
+8. **Verify new project** (same as RESOLVE steps 6-7):
    - Clean working tree
    - Dependencies installed
    - Read CLAUDE.md

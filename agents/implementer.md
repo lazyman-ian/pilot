@@ -22,6 +22,7 @@ Your prompt contains:
 - `claudeMd`: the project's CLAUDE.md content (inline — you do NOT need to read this file)
 - `conventionFiles`: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths to read
 - `baselineFailures`: list of test names/files that already failed before implementation (from PLAN health check). Ignore these in anchor regression analysis.
+- `baselineBuildFailure`: boolean — if true, the project's build/typecheck already fails on the clean branch. VERIFY_ONLY steps should not treat pre-existing build errors as failures from your implementation.
 - Optionally: `crossProjectContext` — API contracts and decisions from prior projects
 
 ## Process
