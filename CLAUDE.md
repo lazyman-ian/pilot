@@ -89,6 +89,16 @@ Every pipeline run appends a row to `~/.agent-dev-telemetry.tsv` (autoresearch-i
 
 No automated test suite. Testing is manual — run the pipeline against a Notion URL and verify each phase. Test results are recorded in `TEST-RESULTS-v*.md` files.
 
+### Architecture Stress Testing
+
+On each model upgrade, test whether pipeline components are still load-bearing:
+- Can tech-designer + design-reviewer merge? (Is anti-sycophancy isolation still needed?)
+- Can implementer self-review? (Is separate code-reviewer still needed?)
+- Can any phase be skipped for standard tasks?
+- Does the complexity router's "simple" threshold need adjustment?
+
+Components encode assumptions about model limitations — re-validate as models improve.
+
 ### Local Development
 
 ```bash

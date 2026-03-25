@@ -101,15 +101,25 @@ Determine which project(s) to work in and build the project queue.
    - CWD is monorepo root → projectDir = `<CWD>/<targetProject>`
    - Verify projectDir has `.git/`
 
-5. Verify clean working tree: `git -C <projectDir> status --porcelain`
+5. **Classify complexity** based on requirement scope:
+   - **Simple** (1-3 files, single component, bug fix, config change): skip DESIGN+REVIEW, go straight to PLAN
+   - **Standard** (new feature, multiple components, UI changes): full pipeline (DESIGN→REVIEW→PLAN→...)
+   - **Complex** (multi-project, new architecture, API changes): full pipeline
+   - Heuristics: count ACs (≤3 = likely simple), check if affectedProjects > 1 (= standard/complex), check if requirement mentions "new page/screen/API" (= standard+)
+   - Record `complexity` in state.json
+
+6. Verify clean working tree: `git -C <projectDir> status --porcelain`
    - If dirty → warn, ask to stash or continue
 
-6. Check development environment:
+7. Check development environment:
    - Read `<projectDir>/CLAUDE.md` for setup instructions and dependencies
    - Verify project dependencies are installed (check for node_modules, Pods, etc.)
    - If missing, suggest the install command from project docs
 
-7. Update state.json: projectDir, targetProject, projectQueue, currentProjectIndex → 0, phase → DESIGN
+8. **Route by complexity**:
+   - **Simple** → update state.json: phase → PLAN (skip DESIGN+REVIEW)
+   - **Standard/Complex** → update state.json: phase → DESIGN (full pipeline)
+   - Always set: projectDir, targetProject, projectQueue, currentProjectIndex → 0
 
 ---
 
@@ -164,10 +174,13 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - Glob `<projectDir>/.claude/rules/*.md`
    - Glob `<projectDir>/.claude/steering/*.md`
    - Record found paths — these will be passed to implementer and code-reviewer prompts.
-3. **Verify build/test/lint commands work** before planning steps around them:
-   - Try a quick dry-run of the project's primary verification command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
-   - If the command from CLAUDE.md doesn't exist (e.g., `make check` requires a missing script), find the underlying command and use that instead
-   - Record the working verification command — all steps will use it
+3. **Environment health check** — verify the project builds and existing tests pass BEFORE planning:
+   a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
+      - If the command from CLAUDE.md doesn't exist, find the underlying command and use that instead
+      - If build fails on the clean branch → something is broken before we start. Log warning, proceed with caution.
+   b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
+      - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
+   c. Record the working verification command + test command — all steps will use them
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
    - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)

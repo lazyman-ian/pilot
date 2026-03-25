@@ -122,6 +122,7 @@ After each subagent returns, YOU write its output to `.agent-dev/` immediately.
   "notionUrl": "https://...",
   "phase": "FETCH|RESOLVE|DESIGN|REVIEW|ESCALATED|PLAN|IMPLEMENT|CODE_REVIEW|VISUAL_CHECK|PR|PROJECT_TRANSITION|COMPLETED|FAILED",
 
+  "complexity": "simple|standard|complex",
   "projectQueue": ["web-hybrid", "housesigma-ios-native"],
   "currentProjectIndex": 0,
   "completedProjects": [],
