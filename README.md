@@ -279,7 +279,7 @@ Legend:
 - **4 Opus subagents** with isolated contexts: tech-designer, design-reviewer, implementer, code-reviewer
 - **Parent is a pure orchestrator** — never reads/writes project code directly, stays lightweight
 - **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md inline + conventionFiles + testInfra + verificationCommand into subagent prompts. All persisted in plan.json for resume safety
-- **SDD + BDD hybrid** — architecture decisions in DESIGN (SDD), TDD for testable steps in IMPLEMENT (BDD). Steps classified TESTABLE vs VERIFY_ONLY during PLAN
+- **SDD + AC-driven TDD** — architecture decisions in DESIGN (SDD), TDD for testable steps in IMPLEMENT (BDD). Steps classified TESTABLE vs VERIFY_ONLY during PLAN
 - **TDD with anchor set** — TESTABLE steps: write test first (RED) → implement (GREEN) → run all anchors (regression check). Based on AlphaCodium test anchor pattern
 - **Multi-project support** — auto-transitions between projects in queue; per-project timing/metrics reset on transition
 - **Design review** in isolated Opus context (anti-sycophancy by architecture)
@@ -292,7 +292,7 @@ Legend:
 
 1. **Scripts > Prompts** — Critical gates enforced by hook scripts, not prompt instructions
 2. **Architecture decisions upfront, implementation JIT** — tech-designer decides WHAT, implementer discovers HOW by reading real code
-3. **SDD + BDD** — Specifications drive design, behavior tests drive implementation. TESTABLE steps use RED→GREEN TDD; VERIFY_ONLY steps use build verification
+3. **SDD + AC-driven TDD** — Specifications drive design, acceptance criteria drive tests. TESTABLE steps use RED→GREEN TDD; VERIFY_ONLY steps use build verification. Projects can adopt BDD (Gherkin) via their own `.claude/rules/` — pipeline is convention-agnostic
 4. **Context isolation** — Each subagent gets fresh context; parent never accumulates implementation details
 5. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files in PLAN and injects them. Validated commands persist in plan.json
 6. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
