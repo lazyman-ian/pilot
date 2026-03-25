@@ -7,7 +7,7 @@ description: >
   "自动开发", "开发流水线". Also trigger on /agent-dev slash command.
 user-invocable: true
 argument-hint: "<notion-url> | resume | status | clean"
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, LSP, Agent, mcp__plugin_agent-dev_chrome-devtools__*, mcp__plugin_agent-dev_figma__*, mcp__plugin_agent-dev_notion__*
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, LSP, Agent, mcp__plugin_agent-dev_chrome-devtools__*, mcp__plugin_agent-dev_figma__*, mcp__claude_ai_Notion__*
 ---
 
 # agent-dev: Autonomous Development Pipeline
@@ -70,7 +70,7 @@ improves code quality during implementation (e.g., auto lint-fix, coding convent
 1. **File persistence**: After EVERY subagent completes, IMMEDIATELY write its output
    to a file in `.agent-dev/`. Never rely on context memory for subagent results.
 2. **state.json is source of truth**: Update at EVERY phase transition BEFORE starting next phase.
-3. **Never skip review**: @agent-dev:design-reviewer runs in separate context for objectivity.
+3. **Never skip review for standard/complex tasks**: @agent-dev:design-reviewer runs in separate context for objectivity. Simple tasks (routed by RESOLVE) skip DESIGN+REVIEW by design.
 4. **Each step = one commit**: Atomic undo points.
 5. **PR is ALWAYS draft**: Never merge.
 6. **After compaction**: Read `state.json` + `plan.json` to resume. Do NOT ask the user.

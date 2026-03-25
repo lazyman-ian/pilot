@@ -329,8 +329,8 @@ From another terminal:
 # Check current state
 cat ~/housesigma/.agent-dev/state.json | jq '{phase, targetProject, completedSteps}'
 
-# Watch for stalls (macOS notification after 10 min)
-bash /path/to/agent-dev/scripts/health-check.sh ~/housesigma/.agent-dev/state.json
+# Watch for stalls (macOS notification after 10 min of no state changes)
+cd ~/housesigma && bash /path/to/agent-dev/scripts/health-check.sh 10
 
 # View telemetry
 column -t -s $'\t' ~/.agent-dev-telemetry.tsv

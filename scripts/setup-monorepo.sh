@@ -12,9 +12,11 @@ mkdir -p "$CLAUDE_DIR"/{rules,skills,steering,agents,commands}
 
 # Track created symlinks
 LINKS=()
+MERGED_HOOKS_SESSION_START=()
 MERGED_HOOKS_PRE=()
 MERGED_HOOKS_POST=()
 MERGED_HOOKS_STOP=()
+MERGED_HOOKS_SUBAGENT_STOP=()
 MERGED_HOOKS_COMPACT=()
 
 echo "Scanning sub-projects..."
@@ -109,7 +111,7 @@ for dir in "$ROOT"/*/; do
     ABS_PROJECT_DIR=$(cd "$dir" && pwd)
 
     # Extract and rewrite hooks: replace $CLAUDE_PROJECT_DIR with absolute path
-    for hook_type in PreToolUse PostToolUse Stop PostCompact; do
+    for hook_type in SessionStart PreToolUse PostToolUse Stop SubagentStop PostCompact; do
       hooks=$(jq -r --arg ht "$hook_type" --arg pd "$ABS_PROJECT_DIR" \
         '.hooks[$ht] // [] | map(
           .hooks = [.hooks[]? | .command = (.command | gsub("\\$CLAUDE_PROJECT_DIR"; $pd) | gsub("\\${CLAUDE_PROJECT_DIR}"; $pd))]
@@ -119,9 +121,11 @@ for dir in "$ROOT"/*/; do
       [ -z "$hooks" ] && continue
 
       case "$hook_type" in
+        SessionStart) MERGED_HOOKS_SESSION_START+=("$hooks") ;;
         PreToolUse) MERGED_HOOKS_PRE+=("$hooks") ;;
         PostToolUse) MERGED_HOOKS_POST+=("$hooks") ;;
         Stop) MERGED_HOOKS_STOP+=("$hooks") ;;
+        SubagentStop) MERGED_HOOKS_SUBAGENT_STOP+=("$hooks") ;;
         PostCompact) MERGED_HOOKS_COMPACT+=("$hooks") ;;
       esac
       echo "    hooks: $hook_type (from $project)"
@@ -148,11 +152,13 @@ fi
 
 # Build merged hooks JSON
 MERGED_JSON="$EXISTING"
-for hook_type in PreToolUse PostToolUse Stop PostCompact; do
+for hook_type in SessionStart PreToolUse PostToolUse Stop SubagentStop PostCompact; do
   case "$hook_type" in
+    SessionStart) arr=("${MERGED_HOOKS_SESSION_START[@]+"${MERGED_HOOKS_SESSION_START[@]}"}") ;;
     PreToolUse) arr=("${MERGED_HOOKS_PRE[@]+"${MERGED_HOOKS_PRE[@]}"}") ;;
     PostToolUse) arr=("${MERGED_HOOKS_POST[@]+"${MERGED_HOOKS_POST[@]}"}") ;;
     Stop) arr=("${MERGED_HOOKS_STOP[@]+"${MERGED_HOOKS_STOP[@]}"}") ;;
+    SubagentStop) arr=("${MERGED_HOOKS_SUBAGENT_STOP[@]+"${MERGED_HOOKS_SUBAGENT_STOP[@]}"}") ;;
     PostCompact) arr=("${MERGED_HOOKS_COMPACT[@]+"${MERGED_HOOKS_COMPACT[@]}"}") ;;
   esac
 

@@ -45,7 +45,14 @@ case "$PHASE" in
   RESOLVE)  MSG="$MSG\n2. Continue project resolution" ;;
   DESIGN)   MSG="$MSG\n2. Read .agent-dev/requirement.json, invoke @agent-dev:tech-designer" ;;
   REVIEW)   MSG="$MSG\n2. Read .agent-dev/tech-design.md, invoke @agent-dev:design-reviewer" ;;
-  ESCALATED)MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/review.json for issues. Ask user how to proceed." ;;
+  ESCALATED)
+    # Determine escalation source: code-review.json exists → code review escalation; otherwise design review
+    if [ -f "$PWD/.agent-dev/code-review.json" ]; then
+      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/code-review.json for issues. Ask user how to proceed."
+    else
+      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/review.json for issues. Ask user how to proceed."
+    fi
+    ;;
   PLAN)     MSG="$MSG\n2. Read .agent-dev/tech-design.md (if exists — simple tasks skip design) + requirement.json, generate plan" ;;
   IMPLEMENT)MSG="$MSG\n2. Read .agent-dev/plan.json, invoke @agent-dev:implementer" ;;
   CODE_REVIEW) MSG="$MSG\n2. Invoke @agent-dev:code-reviewer" ;;

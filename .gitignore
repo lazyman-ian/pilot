@@ -8,3 +8,7 @@
 # Setup artifacts (machine-specific symlink manifest)
 .claude/.agent-dev-setup.json
 .claude/.agent-dev-hooks-backup.json
+.alma-snapshots
+
+# Codex review results (machine-specific)
+.codex-review/results/

@@ -139,7 +139,9 @@ Determine which project(s) to work in and build the project queue.
 
 ## Phase 3: REVIEW
 
-1. Invoke `@agent-dev:design-reviewer`
+1. Invoke `@agent-dev:design-reviewer` with prompt containing:
+   - "Target project directory: <projectDir>"
+   - If cross-project: "Related projects for API reference: <list>"
 2. Parse CONFIDENCE and VERDICT from returned text
 3. **IMMEDIATELY write** to `.agent-dev/review.json`:
    ```json
@@ -289,6 +291,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
    - **`conventionFiles`**: list of `.claude/rules/*.md`, `.claude/steering/*.md`, and `.claude/docs/*.md` paths discovered in PLAN step 2
    - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3b (so implementer can ignore them during anchor checks)
+   - **`baselineBuildFailure`**: boolean from PLAN step 3a — if true, implementer treats pre-existing build failures as baseline (not regression)
    - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
 4. Invoke `@agent-dev:implementer` with the built prompt
 5. Parse the returned summary:
@@ -324,6 +327,8 @@ Run sequentially: code review first, then visual check.
    - **`verificationCommand`**: the working build/typecheck command from PLAN
    - **`lintCommand`**: the validated lint command from PLAN (may be separate from build)
    - **`baseBranch`**: from plan.json (code-reviewer needs it for diff range)
+   - **`baselineFailures`**: from plan.json (pre-existing test failures — not regressions)
+   - **`baselineBuildFailure`**: from plan.json (pre-existing build failure — not a regression)
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
@@ -453,7 +458,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
      → phase → PROJECT_TRANSITION, proceed to Phase 8
    - **Last project**:
      → Set metrics.completedAt → <ISO> (but keep phase as PR until telemetry is written)
-     → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`
+     → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
      → NOW set phase → COMPLETED (only after telemetry is durable)
      → Report all PRs + scores. Ask: "清理 .agent-dev/ 文件？"
 
@@ -467,7 +472,7 @@ Transition from one completed project to the next in the queue.
 2. `mkdir -p .agent-dev/completed` (ensure directory exists before marker/archive)
 3. **Write telemetry** (idempotent — check marker first):
    - If `.agent-dev/completed/<targetProject>.telemetry` marker does NOT exist (use targetProject from state.json):
-     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "1.4.0"`
+     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
      → Create the marker file
    - Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
