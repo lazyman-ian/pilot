@@ -87,10 +87,14 @@ NOT to re-implement from scratch. Your prompt will include additional fields:
 4. **Address issues by severity** (CRITICAL first, then MAJOR, then MINOR):
    a. Read the file(s) referenced in the issue — understand surrounding context
    b. If the issue references a pattern violation, read the convention file or pattern ref first
-   c. Make the targeted fix — change ONLY what the issue describes, do not refactor surrounding code
-   d. Run the step's verification command (build/typecheck) after each fix
-   e. Run anchor set to verify no regressions
-   f. If anchor regression → fix the regression or revert the change and document why
+   c. **If the issue is a missing test** (TEST_COVERAGE ❌ from code review):
+      - Find the step's `testSpec` in plan.json (testFile, testPatternRef, assertions)
+      - Follow the normal TDD flow: write test (RED) → implement/fix to pass (GREEN) → anchor check
+      - Add the new test file to the anchor set
+   d. Otherwise: make the targeted fix — change ONLY what the issue describes, do not refactor surrounding code
+   e. Run the step's verification command (build/typecheck) after each fix
+   f. Run anchor set to verify no regressions
+   g. If anchor regression → fix the regression or revert the change and document why
 5. **If `testResult: FAIL`**: diagnose the failing test, fix it (this is priority even if not in issues list)
 6. **If `lintResult: FAIL`**: run lint, fix violations
 7. **Commit** all fixes in a single commit:
