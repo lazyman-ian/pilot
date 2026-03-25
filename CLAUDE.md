@@ -67,7 +67,7 @@ Critical gates enforced by hook scripts with `exit 2` (block):
 
 - **PLAN**: environment health check (build + existing tests), command validation (dry-run), test infrastructure detection, step testability classification, convention file discovery. All persist in plan.json
 - **Implementer TDD**: TESTABLE steps follow RED→GREEN with anchor set regression protection; VERIFY_ONLY steps use build verification; pre-existing failures exempted via baselineFailures/baselineBuildFailure
-- **Code-reviewer**: RUBRIC_SCORES (Correctness/Completeness/Convention/Regression each X/10), PLAN_COVERAGE, TEST_COVERAGE, REQUIREMENTS_COVERAGE. Uses validated commands from PLAN (not raw CLAUDE.md). Baseline-aware test evaluation.
+- **Code-reviewer**: RUBRIC_SCORES (Correctness/Completeness/Convention/Regression each X/10), PLAN_COVERAGE, TEST_COVERAGE, REQUIREMENTS_COVERAGE. Uses validated commands from PLAN (not raw CLAUDE.md). Baseline-aware test evaluation. On FIX_REQUIRED: re-invokes implementer in **fix mode** (not parent) — implementer reconstructs anchor set from git history, addresses issues by severity, commits fix. Max 2 rounds before ESCALATE.
 - **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue/.scss/.css via merge-base); writes visual-review.json even if SKIPPED; post-fix runs build + lint + tests
 
 ### Complexity Routing

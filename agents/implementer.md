@@ -72,6 +72,44 @@ Your prompt contains:
 
 3. After all steps, run the project's full test suite + lint (if available).
 
+## Fix Mode
+
+When your prompt includes `fixMode: true`, you are re-invoked to address code review issues —
+NOT to re-implement from scratch. Your prompt will include additional fields:
+- `codeReviewIssues`: array of `{ severity, file, line, description, fix }` from code-review.json
+- `testResult`, `lintResult`: current test/lint status from code review
+
+### Fix Mode Process
+
+1. **Read convention files** (same as normal mode — `conventionFiles` list in your prompt)
+2. **Reconstruct anchor set** (same as Recovery — use git merge-base to find test files on this branch)
+3. **Run full test suite** to establish current state before making changes
+4. **Address issues by severity** (CRITICAL first, then MAJOR, then MINOR):
+   a. Read the file(s) referenced in the issue — understand surrounding context
+   b. If the issue references a pattern violation, read the convention file or pattern ref first
+   c. Make the targeted fix — change ONLY what the issue describes, do not refactor surrounding code
+   d. Run the step's verification command (build/typecheck) after each fix
+   e. Run anchor set to verify no regressions
+   f. If anchor regression → fix the regression or revert the change and document why
+5. **If `testResult: FAIL`**: diagnose the failing test, fix it (this is priority even if not in issues list)
+6. **If `lintResult: FAIL`**: run lint, fix violations
+7. **Commit** all fixes in a single commit:
+   `git -C <projectDir> add <files> && git -C <projectDir> commit -m "fix(<scope>): address code review feedback"`
+8. **Final verification**: run full test suite + lint
+
+### Fix Mode Output
+
+```
+FIX_RESULTS:
+- [CRITICAL] file:line — FIXED: what was changed
+- [MAJOR] file:line — FIXED: what was changed
+- [MINOR] file:line — SKIPPED: reason
+UNFIXED_ISSUES: [] (issues that couldn't be resolved, with explanation)
+FILES_MODIFIED: [path, ...]
+FINAL_TEST: PASS|FAIL|SKIPPED
+FINAL_LINT: PASS|FAIL|SKIPPED
+```
+
 ## Anchor Set
 
 Maintain a running list of test file paths that MUST pass after every step.

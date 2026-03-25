@@ -335,11 +335,21 @@ Run sequentially: code review first, then visual check.
    }
    ```
 5. Decision tree:
-   - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, commit, increment codeReviewCount, re-invoke code-reviewer from step 2
+   - **FIX_REQUIRED + codeReviewCount < 2**: re-invoke implementer in fix mode (see below), increment codeReviewCount, then re-invoke code-reviewer from step 2
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
-   - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — fix the failing tests/lint, re-invoke
+   - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — re-invoke implementer in fix mode, re-invoke code-reviewer
    - **APPROVE + testResult=PASS (or SKIPPED if no test infra) + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
+
+   **Implementer fix mode invocation** (for FIX_REQUIRED):
+   Re-invoke `@agent-dev:implementer` with the same context as Phase 5 PLUS fix-specific fields:
+   - All fields from the original Phase 5 prompt: `projectDir`, `branch`, `baseBranch`, `steps` (from plan.json), `testInfra`, `claudeMd`, `conventionFiles`, `baselineFailures`, `baselineBuildFailure`
+   - `fixMode: true`
+   - `codeReviewIssues`: the `issues` array from `.agent-dev/code-review.json`
+   - `testResult`, `lintResult`: from code-review.json (so implementer knows what's broken)
+   - If tech-design.md exists: include relevant `designSection` content per issue
+   The implementer reconstructs anchor set from git history (same as its Recovery flow),
+   addresses issues by severity, and commits a fix. See implementer.md "Fix Mode" for details.
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
