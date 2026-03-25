@@ -287,11 +287,12 @@ Run sequentially: code review first, then visual check.
    - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, commit, increment codeReviewCount, re-invoke code-reviewer from step 2
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
-   - **APPROVE**: proceed to VISUAL_CHECK gate (step 6)
+   - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — fix the failing tests/lint, re-invoke
+   - **APPROVE + testResult=PASS + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
 6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
-   - Implementation includes `.vue` file changes (check `git diff --name-only <baseBranch>..HEAD | grep '\.vue$'`)
+   - Implementation includes UI-related file changes (check `git diff --name-only <baseBranch>..HEAD | grep -E '\.(vue|scss|css)$'`)
 
    **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
    **Any false** → update state.json: phase → PR, proceed to Phase 7

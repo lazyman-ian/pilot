@@ -34,7 +34,7 @@ Your prompt contains:
       - Read `testSpec.testPatternRef` to learn the project's test style
       - Write test file at `testSpec.testFile` with assertions from `testSpec.assertions`
       - Use ACs as test descriptions: `it('AC-2: clicking Claim adds to list', ...)`
-      - Run test: `<testInfra.command> <testSpec.testFile>` → expect **RED** (fail)
+      - Run this step's `verification` command (from plan.json — already framework-specific) → expect **RED** (fail)
       - If test has syntax/import errors → fix the test, re-run
       - If test already passes (GREEN before implementation) → test is too weak, add more specific assertions
 
@@ -43,11 +43,11 @@ Your prompt contains:
       - Read dependency outputs (files from `dependsOn` steps, on disk from prior commits)
       - Read files to modify, find correct insertion points
       - Write/edit code using absolute paths (`<projectDir>/<relative-path>`)
-      - Run test: `<testInfra.command> <testSpec.testFile>` → expect **GREEN** (pass)
+      - Run this step's `verification` command → expect **GREEN** (pass)
       - If still RED → fix implementation, retry (max 2 attempts)
 
    c. **Run anchor set** (regression check):
-      - Run all previously passing test files: `<testInfra.command> <anchor-file-1> <anchor-file-2> ...`
+      - Run the project's full test command (`testInfra.command` with no file args) to verify ALL passing tests still pass
       - If any anchor fails → this step broke prior work. Fix before proceeding.
       - Add this step's test file to the anchor set.
 
@@ -84,8 +84,10 @@ Maintain a running list of test file paths that MUST pass after every step.
 
 If context compacts mid-implementation:
 1. Run `git -C <projectDir> log --oneline -20` to see which steps are committed
-2. Reconstruct anchor set: find test files in prior commits via `git log --name-only | grep -E '\.(test|spec)\.'`
-3. Run full anchor set to verify state before continuing
+2. Reconstruct anchor set from **this branch only** (not full repo history):
+   `git diff --name-only <baseBranch>..HEAD | grep -E '\.(test|spec)\.'`
+   This returns only test files added/modified in the current pipeline run.
+3. Run the project's full test command to verify state before continuing
 4. Read the plan (provided in your prompt) to find the next uncommitted step
 5. Continue from there
 
