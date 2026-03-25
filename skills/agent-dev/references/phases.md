@@ -302,14 +302,11 @@ all steps using JIT file reading (reads real code before each step, not predicti
 
 **If implementer reports failures:**
 - Steps that failed verification but were committed → let code-reviewer catch them
-- Steps that were skipped → assess if critical. If not critical, proceed to CODE_REVIEW.
-  If blocking:
-  - **1 skipped VERIFY_ONLY step** (type/config/i18n): parent reads git + files, makes the fix, runs `verificationCommand`, commits
-  - **Otherwise** (multiple steps, or TESTABLE steps): re-invoke `@agent-dev:implementer`
-    with the same context as step 3, but set `steps` to ONLY the skipped/failed steps
-    (implementer reconstructs anchor set from git history via Recovery flow).
-    If re-invocation also fails → increment metrics.interventions, proceed to CODE_REVIEW
-    and let code-reviewer flag the gaps.
+- Steps that were skipped → if not blocking any downstream step, proceed to CODE_REVIEW.
+  If blocking: re-invoke `@agent-dev:implementer` with the same context as step 3,
+  but set `steps` to ONLY the skipped/failed steps (implementer reconstructs anchor set
+  from git history via Recovery flow). If re-invocation also fails → increment
+  metrics.interventions, proceed to CODE_REVIEW and let code-reviewer flag the gaps.
 
 ---
 
@@ -341,22 +338,13 @@ Run sequentially: code review first, then visual check.
    }
    ```
 5. Decision tree:
-   - **FIX_REQUIRED + codeReviewCount < 2**: route fix by issue scale (see below), increment codeReviewCount, then re-invoke code-reviewer from step 2
+   - **FIX_REQUIRED + codeReviewCount < 2**: invoke implementer fix mode (see below), increment codeReviewCount, then re-invoke code-reviewer from step 2
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
-   - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — route fix by issue scale, re-invoke code-reviewer
+   - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — invoke implementer fix mode, re-invoke code-reviewer
    - **APPROVE + testResult=PASS (or SKIPPED if no test infra) + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
 
-   **Fix routing by issue scale**:
-   Count CRITICAL + MAJOR issues from code-review.json. Then route:
-
-   **Lightweight fix (0 CRITICAL, ≤2 MAJOR, all issues are single-file)** — parent fixes directly:
-   - `git diff` to understand current changes, read the specific files cited in issues
-   - Make targeted edits (rename, null check, lint fix, missing import, etc.)
-   - Run `verificationCommand` + `testInfra.command` + `lintCommand` to verify
-   - `git commit` the fix
-
-   **Heavy fix (any CRITICAL, or >2 MAJOR, or issues span multiple files/logic)** — delegate to implementer fix mode:
+   **Implementer fix mode invocation** (ALWAYS — no parent code edits):
    Re-invoke `@agent-dev:implementer` with the same context as Phase 5 PLUS fix-specific fields:
    - All fields from the original Phase 5 prompt: `projectDir`, `branch`, `baseBranch`, `steps` (from plan.json), `testInfra`, `claudeMd`, `conventionFiles`, `baselineFailures`, `baselineBuildFailure`
    - `fixMode: true`
