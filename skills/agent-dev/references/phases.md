@@ -441,6 +441,7 @@ Transition from one completed project to the next in the queue.
    - `targetProject` = `projectQueue[currentProjectIndex]`
    - `projectDir` = resolve path (CWD/<targetProject> or CWD if matching)
    - Reset per-project fields: branch, baseBranch, reviewConfidence, reviewRevisionCount, codeReviewConfidence, codeReviewCount, currentStep, completedSteps, prUrl → null
+   - Reset timing: `createdAt` → current ISO (new project start), `metrics.completedAt` → null, `metrics.interventions` → 0
 
 8. **Verify new project** (same as RESOLVE steps 5-6):
    - Clean working tree

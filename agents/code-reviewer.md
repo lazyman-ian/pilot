@@ -19,8 +19,9 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    `testInfra` (the validated test command from PLAN, if available), and
    `verificationCommand` (the validated build/lint command from PLAN, if available).
    Read the convention files for coding rules. For commands:
-   - Build/lint: use `verificationCommand` if provided (already verified to work during PLAN), else fall back to `claudeMd`
-   - Tests: use `testInfra.command` if provided, else fall back to `claudeMd`
+   - **Build/typecheck**: use `verificationCommand` if provided (verified during PLAN), else fall back to `claudeMd`
+   - **Tests**: use `testInfra.command` if provided, else fall back to `claudeMd`
+   - **Lint**: always read `claudeMd` for the lint command — it is separate from build/typecheck (e.g., `eslint`, `ktlintCheck`). `verificationCommand` may only cover build, not lint.
    Do NOT guess commands — the project documents them.
 2. Run from project dir:
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`
