@@ -180,7 +180,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
       - If build fails on the clean branch → something is broken before we start. Log warning, proceed with caution.
    b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
-   c. Record the working verification command + test command — all steps will use them
+   c. Record the working verification command + test command + baseline failures list — persist all in plan.json
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
    - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)
@@ -219,7 +219,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "branchName": "feat/<slug>",
      "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
      "verificationCommand": "pnpm vtsc:app",
-     "conventionFiles": [".claude/rules/vue-conventions.md", ".claude/steering/tech.md"],
+     "conventionFiles": ["<projectDir>/.claude/rules/vue-conventions.md", "<projectDir>/.claude/steering/tech.md"],
+     "baselineFailures": [],
      "steps": [
        {
          "index": 1,
