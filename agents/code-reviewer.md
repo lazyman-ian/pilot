@@ -16,12 +16,13 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
 
 1. **Review injected project docs**: your prompt includes `claudeMd` (CLAUDE.md content inline),
    `conventionFiles` (paths to `.claude/rules/*.md` and `.claude/steering/*.md`), and
-   `testInfra` (the validated test command from PLAN, if available), and
-   `verificationCommand` (the validated build/lint command from PLAN, if available).
+   `testInfra` (validated test command), `verificationCommand` (validated build/typecheck), and
+   `lintCommand` (validated lint command, if separate from build).
    Read the convention files for coding rules. For commands:
-   - **Build/typecheck**: use `verificationCommand` if provided (verified during PLAN), else fall back to `claudeMd`
-   - **Tests**: use `testInfra.command` if provided, else fall back to `claudeMd`
-   - **Lint**: always read `claudeMd` for the lint command — it is separate from build/typecheck (e.g., `eslint`, `ktlintCheck`). `verificationCommand` may only cover build, not lint.
+   - **Build/typecheck**: use `verificationCommand`
+   - **Tests**: use `testInfra.command`
+   - **Lint**: use `lintCommand` if provided, else fall back to `claudeMd`
+   All three are validated during PLAN. Fall back to `claudeMd` only if a field is absent.
    Do NOT guess commands — the project documents them.
 2. Run from project dir:
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`
@@ -34,7 +35,7 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
 6. Run project's verification:
    - **Build/typecheck**: use `verificationCommand` (from step 1)
    - **Tests**: use `testInfra.command` (from step 1)
-   - **Lint**: read lint command from `claudeMd` (lint is often separate from build — e.g., `eslint`, `ktlintCheck`). Do NOT use `verificationCommand` for lint.
+   - **Lint**: use `lintCommand` (from step 1; validated during PLAN). Fall back to `claudeMd` only if absent.
 7. Run lint on changed files if lint tool is available
 
 ## Review Criteria

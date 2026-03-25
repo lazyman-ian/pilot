@@ -173,14 +173,17 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
 2. **Discover project convention files** for subagent context injection:
    - Glob `<projectDir>/.claude/rules/*.md`
    - Glob `<projectDir>/.claude/steering/*.md`
-   - Record found paths — these will be passed to implementer and code-reviewer prompts.
+   - Glob `<projectDir>/.claude/docs/*.md` (if exists — some projects keep setup/auth notes here)
+   - Record found paths (absolute) — these will be passed to implementer and code-reviewer prompts.
 3. **Environment health check** — verify the project builds and existing tests pass BEFORE planning:
    a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
       - If the command from CLAUDE.md doesn't exist, find the underlying command and use that instead
       - If build fails on the clean branch → something is broken before we start. Log warning, proceed with caution.
    b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
-   c. Record the working verification command + test command + baseline failures list — persist all in plan.json
+   c. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too
+   d. Record all validated commands + baseline failures list — persist in plan.json:
+      `verificationCommand` (build/typecheck), `testInfra` (test), `lintCommand` (lint, if separate), `baselineFailures`
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
    - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)
@@ -219,6 +222,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      "branchName": "feat/<slug>",
      "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
      "verificationCommand": "pnpm vtsc:app",
+     "lintCommand": "pnpm eslint --fix",
      "conventionFiles": ["<projectDir>/.claude/rules/vue-conventions.md", "<projectDir>/.claude/steering/tech.md"],
      "baselineFailures": [],
      "steps": [
@@ -312,7 +316,8 @@ Run sequentially: code review first, then visual check.
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline)
    - **`conventionFiles`**: `.claude/rules/*.md` and `.claude/steering/*.md` paths from PLAN
    - **`testInfra`**: from plan.json (the validated test command — code-reviewer should use this instead of raw CLAUDE.md commands)
-   - **`verificationCommand`**: the working build/lint command discovered in PLAN step 3 (may differ from CLAUDE.md if the documented command was broken)
+   - **`verificationCommand`**: the working build/typecheck command from PLAN
+   - **`lintCommand`**: the validated lint command from PLAN (may be separate from build)
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
