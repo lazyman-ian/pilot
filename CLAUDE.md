@@ -13,10 +13,10 @@ A Claude Code **plugin** (`claude plugin install github:housesigma/agent-dev`) t
 skills/agent-dev/SKILL.md    ← Main skill definition (entry point, triggers, allowed tools)
 skills/agent-dev/references/  ← phases.md (detailed phase instructions), prompts.md
 agents/                       ← Subagent definitions (markdown frontmatter + system prompts)
-  tech-designer.md            ← Sonnet, READ-ONLY, generates tech design
+  tech-designer.md            ← Opus, READ-ONLY, generates tech design + testable components table
   design-reviewer.md          ← Opus, READ-ONLY, skeptical independent review
-  implementer.md              ← Sonnet, R/W, JIT step-by-step implementation
-  code-reviewer.md            ← Opus, has Bash, runs tests + reviews code
+  implementer.md              ← Opus, R/W, TDD for testable steps + JIT implementation
+  code-reviewer.md            ← Opus, has Bash, runs tests + lint + checks plan/test coverage
 hooks/hooks.json              ← Hook definitions (SessionStart, PreToolUse, PostToolUse, etc.)
 hooks/stop-hook.sh            ← Prevents pipeline session from stopping mid-pipeline
 scripts/                      ← Shell scripts for gates, health checks, context recovery
@@ -44,10 +44,10 @@ FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW (
 ### Context Boundary Design
 
 Agents are split by **what context they need**, not by role:
-- `tech-designer` (Sonnet): needs codebase read access, produces architecture-level design — reads project docs itself
+- `tech-designer` (Opus): needs codebase read access, produces architecture-level design + testable components table — reads project docs itself
 - `design-reviewer` (Opus): isolated context for anti-sycophancy — reads project docs itself
-- `implementer` (Sonnet): fresh context per project, JIT file reading per step — receives CLAUDE.md inline + convention file paths from parent
-- `code-reviewer` (Opus): needs Bash for tests/lint — receives CLAUDE.md inline + convention file paths, checks plan coverage
+- `implementer` (Opus): fresh context per project, TDD for TESTABLE steps (RED→GREEN + anchor set), JIT for VERIFY_ONLY steps — receives CLAUDE.md inline + convention file paths + testInfra from parent
+- `code-reviewer` (Opus): needs Bash for tests/lint — receives CLAUDE.md + conventionFiles + testInfra + verificationCommand, checks plan coverage + test coverage
 - Parent is a pure orchestrator — never reads/writes project code directly
 
 **Subagents don't auto-load project docs** (.claude/rules, CLAUDE.md, steering). Parent injects CLAUDE.md content inline and .claude/ file paths into implementer/code-reviewer prompts. Tech-designer and design-reviewer discover docs as part of their codebase analysis.
@@ -66,9 +66,10 @@ Notion, Figma, and Chrome DevTools are accessed via MCP. MCP auth does NOT propa
 
 ### Quality Gates
 
-- **PLAN phase**: verifies build/test/lint commands work before using them in steps; if design includes tests, creates a dedicated test step
-- **Code-reviewer**: reads plan.json and verifies each step was implemented (PLAN_COVERAGE output); catches missing test files
-- **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue); cannot silently skip — must write visual-review.json even if SKIPPED
+- **PLAN phase**: verifies build/test/lint commands work (dry-run); detects test infrastructure; classifies steps as TESTABLE vs VERIFY_ONLY; persists conventionFiles + verificationCommand in plan.json for resume safety
+- **Implementer TDD**: TESTABLE steps follow RED→GREEN with anchor set regression protection; VERIFY_ONLY steps use build verification only
+- **Code-reviewer**: reads plan.json and verifies each step was implemented (PLAN_COVERAGE); checks TESTABLE steps have corresponding test files (TEST_COVERAGE); uses validated commands from PLAN, not raw CLAUDE.md
+- **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue/.scss/.css via merge-base); cannot silently skip — must write visual-review.json even if SKIPPED
 
 ### Telemetry
 

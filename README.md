@@ -6,11 +6,11 @@ Autonomous development pipeline for Claude Code: Notion requirement → draft PR
 
 Takes a Notion requirement URL and autonomously:
 1. **Fetches** requirements from Notion (+ Figma designs if linked)
-2. **Designs** technical approach by analyzing the codebase
+2. **Designs** technical approach (Opus) with testable components table
 3. **Reviews** the design independently (separate Opus session, anti-sycophancy)
-4. **Plans** atomic implementation steps with pattern references
-5. **Implements** code via dedicated subagent with JIT file reading
-6. **Reviews** code + visual design fidelity against Figma
+4. **Plans** steps with testability classification, pattern refs, and verified commands
+5. **Implements** via TDD for testable steps (RED→GREEN + anchor set) and JIT for verify-only steps
+6. **Reviews** code (plan coverage + test coverage) + visual design fidelity against Figma
 7. **Creates** a draft PR, then auto-continues to next project in queue
 
 Fully autonomous — human only intervenes on review ESCALATION or at the end (PR review).
@@ -91,7 +91,7 @@ claude --plugin-dir /path/to/agent-dev
   │        └───────────┬───────────┘          │                    │
   │                    │  + cross-project-summary.md (if exists)    │
   │                    ├── spawn ─────────────>│                    │
-  │                    │              @tech-designer (Sonnet)       │
+  │                    │              @tech-designer (Opus)       │
   │                    │              reads CLAUDE.md + .claude/    │
   │                    │              reads codebase, LSP verify    │
   │                    │              produces architecture +       │
@@ -125,8 +125,12 @@ claude --plugin-dir /path/to/agent-dev
   │                    │  read CLAUDE.md      │                    │
   │                    │  glob .claude/rules/ │                    │
   │                    │    + .claude/steering/│                    │
+  │                    │  verify commands work │                    │
+  │                    │  detect test infra   │                    │
   │                    │  break design into   │                    │
   │                    │  steps with:         │                    │
+  │                    │  - testability       │                    │
+  │                    │  - testSpec (if any) │                    │
   │                    │  - designSection     │                    │
   │                    │  - patternRef        │                    │
   │                    │  - dependsOn         │                    │
@@ -141,21 +145,28 @@ claude --plugin-dir /path/to/agent-dev
   │                    │  inject into prompt:  │                    │
   │                    │  · CLAUDE.md (inline) │                    │
   │                    │  · convention paths   │                    │
+  │                    │  · testInfra          │                    │
   │                    │  · design sections    │                    │
   │                    │  · cross-project ctx  │                    │
   │                    ├── spawn ─────────────>│                    │
-  │                    │              @implementer (Sonnet)         │
+  │                    │              @implementer (Opus)           │
   │                    │              fresh context per project     │
   │                    │                      │                    │
   │                    │              step 1: read convention files │
   │                    │              ┌───────┴───────┐            │
   │                    │              │ For each step │            │
-  │                    │              │  1. read patternRef        │
-  │                    │              │  2. read dependencies      │
-  │                    │              │  3. read target files      │
-  │                    │              │  4. implement (JIT)        │
-  │                    │              │  5. verify (tsc/lint)      │
-  │                    │              │  6. git commit             │
+  │                    │              │                            │
+  │                    │              │ TESTABLE:                  │
+  │                    │              │  1. write test (RED)       │
+  │                    │              │  2. implement (GREEN)      │
+  │                    │              │  3. run anchor set         │
+  │                    │              │  4. git commit             │
+  │                    │              │                            │
+  │                    │              │ VERIFY_ONLY:               │
+  │                    │              │  1. implement (JIT)        │
+  │                    │              │  2. verify (build/lint)    │
+  │                    │              │  3. run anchor set         │
+  │                    │              │  4. git commit             │
   │                    │              └───────┬───────┘            │
   │                    │                      │                    │
   │                    │<── summary ──────────│                    │
@@ -168,11 +179,12 @@ claude --plugin-dir /path/to/agent-dev
   │                    │  inject into prompt:  │                    │
   │                    │  · CLAUDE.md (inline) │                    │
   │                    │  · convention paths   │                    │
+  │                    │  · testInfra + verCmd │                    │
   │                    ├── spawn ─────────────>│                    │
   │                    │              @code-reviewer (Opus)         │
   │                    │              read convention files         │
   │                    │              git diff, run tests + lint    │
-  │                    │              check AC coverage             │
+  │                    │              check AC + plan + test coverage│
   │                    │<── VERDICT ──────────│                    │
   │                    │                      │                    │
   │                    ├─── FIX_REQUIRED ─┐   │                    │
@@ -183,7 +195,7 @@ claude --plugin-dir /path/to/agent-dev
   │                    │                      │                    │
   │                    ├─── APPROVE ──────> VISUAL_CHECK gate      │
   │                    │                      │                    │
-  │                    │  gate: figma? + web-hybrid? + .vue?        │
+  │                    │  gate: figma? + web? + .vue/.scss/.css?     │
   │                    │                      │                    │
   │              ┌─ ALL TRUE ─┐        ┌─ ANY FALSE ─┐            │
   │              │            │        │             │             │
@@ -212,7 +224,7 @@ claude --plugin-dir /path/to/agent-dev
   │            └── MISMATCH   │        │                           │
   │                │          │        │                           │
   │                │  fix CSS/template │                           │
-  │                │  tsc + lint verify│                           │
+  │                │  build + lint     │                           │
   │                │  git commit       │                           │
   │                │  re-capture       │                           │
   │                │  re-compare       │                           │
@@ -237,13 +249,14 @@ claude --plugin-dir /path/to/agent-dev
   │  │Phase 8: TRANSITION│ │          │  write telemetry           │
   │  └────────┬─────────┘ │           │  report all PRs            │
   │           │            │           │                            │
+  │           │ set completedAt        │                            │
   │           │ write telemetry        │                            │
   │           │ archive artifacts      │                            │
   │           │ write cross-project    │                            │
   │           │   summary.md           │                            │
   │           │ advance queue index    │                            │
   │           │ reset per-project      │                            │
-  │           │   fields               │                            │
+  │           │   fields + timing      │                            │
   │           │            │           │                            │
   │           └── loop back to Phase 2: DESIGN ──────>             │
   │  └─────────────────────────────────────────────────┘           │
@@ -263,26 +276,28 @@ Legend:
 
 ## Architecture
 
-- **4 subagents** with isolated contexts: tech-designer (Sonnet), design-reviewer (Opus), implementer (Sonnet), code-reviewer (Opus)
+- **4 Opus subagents** with isolated contexts: tech-designer, design-reviewer, implementer, code-reviewer
 - **Parent is a pure orchestrator** — never reads/writes project code directly, stays lightweight
-- **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md inline + .claude/ convention file paths into implementer/code-reviewer prompts
-- **Multi-project support** — auto-transitions between projects in queue (e.g., web → iOS → Android)
-- **JIT implementation** — implementer reads real code before each step, not predictions from design phase
+- **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md inline + conventionFiles + testInfra + verificationCommand into subagent prompts. All persisted in plan.json for resume safety
+- **SDD + BDD hybrid** — architecture decisions in DESIGN (SDD), TDD for testable steps in IMPLEMENT (BDD). Steps classified TESTABLE vs VERIFY_ONLY during PLAN
+- **TDD with anchor set** — TESTABLE steps: write test first (RED) → implement (GREEN) → run all anchors (regression check). Based on AlphaCodium test anchor pattern
+- **Multi-project support** — auto-transitions between projects in queue; per-project timing/metrics reset on transition
 - **Design review** in isolated Opus context (anti-sycophancy by architecture)
-- **Visual check** compares Figma screenshots vs browser screenshots using vision (mandatory when gate passes, cannot silently skip)
-- **Quality gates** — PLAN verifies commands work, code-reviewer checks plan coverage, tests are explicit steps
+- **Visual check** compares Figma screenshots vs browser screenshots (gate: .vue/.scss/.css via merge-base; mandatory when gate passes; writes SKIPPED verdict if can't complete)
+- **Quality gates** — PLAN verifies commands work (dry-run); code-reviewer checks PLAN_COVERAGE + TEST_COVERAGE; APPROVE requires test+lint PASS
 - **Gate scripts** enforce pipeline ordering (exit code 2 blocks)
-- **State persistence** in `.agent-dev/state.json` for crash recovery
+- **State persistence** in `.agent-dev/state.json` + plan.json for crash recovery
 
 ## Design Principles
 
 1. **Scripts > Prompts** — Critical gates enforced by hook scripts, not prompt instructions
 2. **Architecture decisions upfront, implementation JIT** — tech-designer decides WHAT, implementer discovers HOW by reading real code
-3. **Context isolation** — Each subagent gets fresh context; parent never accumulates implementation details
-4. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files in PLAN and injects them into subagent prompts
-5. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
-6. **Plan = contract** — Code-reviewer verifies every planned step was implemented (PLAN_COVERAGE); tests in design must become plan steps
-7. **MCP-first integration** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
+3. **SDD + BDD** — Specifications drive design, behavior tests drive implementation. TESTABLE steps use RED→GREEN TDD; VERIFY_ONLY steps use build verification
+4. **Context isolation** — Each subagent gets fresh context; parent never accumulates implementation details
+5. **Explicit context injection** — Subagents don't inherit project docs; parent discovers .claude/ files in PLAN and injects them. Validated commands persist in plan.json
+6. **Cross-project knowledge transfer** — `cross-project-summary.md` carries API contracts and design decisions between projects
+7. **Plan = contract** — Code-reviewer verifies every planned step was implemented (PLAN_COVERAGE) and every testable step has tests (TEST_COVERAGE)
+8. **MCP-first integration** — Notion/Figma/Chrome DevTools via MCP, not custom API clients
 
 ## Telemetry
 
