@@ -3,6 +3,19 @@
 Read the section matching your current phase from state.json.
 After compaction, re-read this file and state.json to resume.
 
+## Compact Instructions
+
+When compacting, preserve in priority order:
+1. Current phase + projectDir + branch (from state.json)
+2. plan.json step statuses (which steps passed/failed/pending)
+3. Recent subagent verdicts (APPROVE/FIX_REQUIRED/REVISE)
+
+Safe to discard:
+- Notion/Figma MCP tool call results from FETCH phase
+- Raw subagent output text (already persisted to .agent-dev/ files on disk)
+- File contents read during PLAN/RESOLVE (re-readable from disk)
+- Completed phase artifacts content (on disk: tech-design.md, review.json, etc.)
+
 ALL `.agent-dev/` artifacts live in CWD. This is typically the target project directory.
 Recommended: run `/agent-dev` from inside the target project (e.g., `cd web-hybrid && claude`).
 This way, the project's .claude/ hooks, rules, skills, and steering docs are automatically loaded.
@@ -208,7 +221,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
          "filesModify": [],
          "patternRef": "packages/store/watch.ts",
          "dependsOn": [],
-         "verification": "pnpm vitest run packages/store/__tests__/myhome.test.ts"
+         "verification": "pnpm vitest run packages/store/__tests__/myhome.test.ts",
+         "status": "pending"
        },
        {
          "index": 2,
@@ -220,10 +234,12 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
          "filesModify": ["packages/common/i18n/translation/en.ts"],
          "patternRef": null,
          "dependsOn": [],
-         "verification": "pnpm vtsc:app"
+         "verification": "pnpm vtsc:app",
+         "status": "pending"
        }
      ]
    }
+   All steps start with `"status": "pending"`. Implementer updates to `"pass"` or `"fail"` after each step.
    ```
 8. Create branch: `git -C <projectDir> checkout -b <branchName>`
 9. Log plan summary:
@@ -255,8 +271,9 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - `COMPLETED_STEPS` → update state.json: completedSteps
    - `SKIPPED_STEPS` → log warnings
    - `ISSUES` → if any design/code discrepancies, log them for code review
-6. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
-7. Update state.json: phase → CODE_REVIEW
+6. **Update plan.json step statuses**: set each completed step's `status` to `"pass"`, failed/skipped to `"fail"`. Verify no steps remain `"pending"` — if any do, the implementer missed them.
+7. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
+8. Update state.json: phase → CODE_REVIEW
 
 **If implementer reports failures:**
 - Steps that failed verification but were committed → let code-reviewer catch them

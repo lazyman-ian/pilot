@@ -51,6 +51,12 @@ LINT_RESULT: PASS|FAIL (details if fail)
 CONFIDENCE: <0-100>
 VERDICT: APPROVE|FIX_REQUIRED
 
+RUBRIC_SCORES:
+- Correctness: X/10 (tests pass, logic correct, edge cases handled)
+- Completeness: X/10 (N/M ACs covered)
+- Convention: X/10 (follows project patterns from conventions)
+- Regression: X/10 (anchor set green, no pre-existing tests broken)
+
 ISSUES:
 - [CRITICAL] file:line — description. Fix: suggestion
 - [MAJOR] file:line — description. Fix: suggestion

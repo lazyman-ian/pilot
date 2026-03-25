@@ -54,6 +54,7 @@ Your prompt contains:
 
    d. **Commit** — test + implementation together:
       `git -C <projectDir> add <files> && git -C <projectDir> commit -m "feat(<scope>): <step title>"`
+   e. Mark step status → `"pass"`
 
    ### If `testability == "VERIFY_ONLY"` (or testInfra is null):
 
@@ -61,9 +62,9 @@ Your prompt contains:
    b. Implement code
    c. Run verification command from `<projectDir>`
       - If fails: diagnose, fix, retry (max 2 attempts)
-      - If still fails: document failure, continue to next step
+      - If still fails: mark step status → `"fail"`, document failure, continue to next step
    d. **Run anchor set** (if any anchors exist) — verify no regressions
-   e. Commit
+   e. Commit, mark step status → `"pass"`
 
 3. After all steps, run the project's full test suite + lint (if available).
 
@@ -96,7 +97,8 @@ If context compacts mid-implementation:
 
 Return a structured summary:
 ```
-COMPLETED_STEPS: [1, 2, 3, ...]
+STEP_STATUSES: {1: "pass", 2: "pass", 3: "fail", ...}
+COMPLETED_STEPS: [1, 2, ...]
 SKIPPED_STEPS: [] (with reasons)
 FILES_CREATED: [path, ...]
 FILES_MODIFIED: [path, ...]
