@@ -151,18 +151,23 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - Glob `<projectDir>/.claude/rules/*.md`
    - Glob `<projectDir>/.claude/steering/*.md`
    - Record found paths — these will be passed to implementer and code-reviewer prompts.
-3. Read `.agent-dev/tech-design.md`, break into atomic steps:
-   - Each step: 1-3 files, has verification command (from project docs)
+3. **Verify build/test/lint commands work** before planning steps around them:
+   - Try a quick dry-run of the project's primary verification command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
+   - If the command from CLAUDE.md doesn't exist (e.g., `make check` requires a missing script), find the underlying command and use that instead
+   - Record the working verification command — all steps will use it
+4. Read `.agent-dev/tech-design.md`, break into atomic steps:
+   - Each step: 1-3 files, has verification command (the working one from step 3)
    - Order: types/schema → backend → API → frontend → tests
+   - **If tech-design.md has a Testing Strategy section with unit/integration tests**: create a dedicated test step as the last implementation step. Do NOT leave tests for the code-reviewer to catch as missing.
    - For each step, identify:
      - `designSection`: which section of tech-design.md describes this step
      - `patternRef`: an existing file in the project that serves as the pattern to follow (e.g., an existing store for a new store)
      - `dependsOn`: which prior step indices this step depends on
-4. Detect base branch:
+5. Detect base branch:
    `git -C <projectDir> rev-parse --abbrev-ref origin/HEAD 2>/dev/null`
    This returns e.g. "origin/main" — strip the "origin/" prefix.
    Fallback: main → master
-5. Write `.agent-dev/plan.json`:
+6. Write `.agent-dev/plan.json`:
    ```json
    {
      "totalSteps": N,
@@ -183,11 +188,11 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      ]
    }
    ```
-6. Create branch: `git -C <projectDir> checkout -b <branchName>`
-7. Log plan summary:
+7. Create branch: `git -C <projectDir> checkout -b <branchName>`
+8. Log plan summary:
    "项目: <targetProject>\n分支: <branchName>\n步骤:\n1. <title>\n..."
-8. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
-9. Proceed immediately to Phase 5
+9. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
+10. Proceed immediately to Phase 5
 
 ---
 

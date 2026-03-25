@@ -22,8 +22,12 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`
 3. Read `<CWD>/.agent-dev/requirement.json` for acceptance criteria
 4. Read `<CWD>/.agent-dev/tech-design.md` for intended approach
-5. Run project's test and lint commands (from CLAUDE.md)
-6. Run lint on changed files if lint tool is available
+5. Read `<CWD>/.agent-dev/plan.json` — verify each planned step was implemented:
+   - Check that every step's files exist and were modified in the diff
+   - If the plan includes a test step, verify test files were created
+   - Flag any planned step that appears missing from the implementation
+6. Run project's test and lint commands (from claudeMd)
+7. Run lint on changed files if lint tool is available
 
 ## Review Criteria
 
@@ -51,6 +55,10 @@ REQUIREMENTS_COVERAGE:
 - ✅ AC1: covered by <file>
 - ✅ AC2: covered by <file>
 - ❌ AC3: missing — <what's needed>
+
+PLAN_COVERAGE:
+- ✅ Step 1: "title" — implemented in <file>
+- ❌ Step 7: "unit tests" — missing, design required tests
 
 SUMMARY: <one paragraph>
 ```
