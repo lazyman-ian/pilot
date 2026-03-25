@@ -155,44 +155,77 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - Try a quick dry-run of the project's primary verification command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
    - If the command from CLAUDE.md doesn't exist (e.g., `make check` requires a missing script), find the underlying command and use that instead
    - Record the working verification command — all steps will use it
-4. Read `.agent-dev/tech-design.md`, break into atomic steps:
+4. **Detect test infrastructure**:
+   - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
+   - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)
+   - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
+   - If found → record test command (e.g., `pnpm vitest run`) and example test file paths as patterns
+5. Read `.agent-dev/tech-design.md`, break into atomic steps:
    - Each step: 1-3 files, has verification command (the working one from step 3)
    - Order: types/schema → backend → API → frontend → tests
-   - **If tech-design.md has a Testing Strategy section with unit/integration tests**: create a dedicated test step as the last implementation step. Do NOT leave tests for the code-reviewer to catch as missing.
-   - For each step, identify:
+   - **Classify each step's `testability`**:
+     - `TESTABLE`: business logic, API service, store/state, UI component with interactive behavior
+     - `VERIFY_ONLY`: type definitions, i18n, routes, config, CSS (verified by build or VISUAL_CHECK)
+   - For TESTABLE steps, add `testSpec`:
+     - `acRefs`: which acceptance criteria this step addresses
+     - `testFile`: path for the test file (follow project test conventions)
+     - `testPatternRef`: an existing test file to follow as pattern
+     - `assertions`: human-readable list of what the test should verify
+   - If a test needs multiple steps completed, assign testSpec to the **last** dependency step
+   - For each step, also identify:
      - `designSection`: which section of tech-design.md describes this step
-     - `patternRef`: an existing file in the project that serves as the pattern to follow (e.g., an existing store for a new store)
+     - `patternRef`: an existing file to follow as implementation pattern
      - `dependsOn`: which prior step indices this step depends on
-5. Detect base branch:
+6. Detect base branch:
    `git -C <projectDir> rev-parse --abbrev-ref origin/HEAD 2>/dev/null`
    This returns e.g. "origin/main" — strip the "origin/" prefix.
    Fallback: main → master
-6. Write `.agent-dev/plan.json`:
+7. Write `.agent-dev/plan.json`:
    ```json
    {
      "totalSteps": N,
      "baseBranch": "main",
      "branchName": "feat/<slug>",
+     "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
      "steps": [
        {
          "index": 1,
-         "title": "...",
+         "title": "MyHome Pinia store",
          "description": "...",
-         "designSection": "Data Model Changes",
-         "filesCreate": [],
+         "designSection": "UI Changes §1",
+         "testability": "TESTABLE",
+         "testSpec": {
+           "acRefs": ["AC-2", "AC-8"],
+           "testFile": "packages/store/__tests__/myhome.test.ts",
+           "testPatternRef": "packages/store/__tests__/watch.test.ts",
+           "assertions": ["add() updates claimedIdSet", "remove() clears from set", "fetchList() populates homes"]
+         },
+         "filesCreate": ["packages/store/myhome.ts"],
          "filesModify": [],
-         "patternRef": "packages/common/definition/watch.ts",
+         "patternRef": "packages/store/watch.ts",
          "dependsOn": [],
-         "verification": "npx tsc --noEmit"
+         "verification": "pnpm vitest run packages/store/__tests__/myhome.test.ts"
+       },
+       {
+         "index": 2,
+         "title": "i18n keys",
+         "description": "...",
+         "designSection": "i18n",
+         "testability": "VERIFY_ONLY",
+         "filesCreate": [],
+         "filesModify": ["packages/common/i18n/translation/en.ts"],
+         "patternRef": null,
+         "dependsOn": [],
+         "verification": "pnpm vtsc:app"
        }
      ]
    }
    ```
-7. Create branch: `git -C <projectDir> checkout -b <branchName>`
-8. Log plan summary:
-   "项目: <targetProject>\n分支: <branchName>\n步骤:\n1. <title>\n..."
-9. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
-10. Proceed immediately to Phase 5
+8. Create branch: `git -C <projectDir> checkout -b <branchName>`
+9. Log plan summary:
+   "项目: <targetProject>\n分支: <branchName>\n步骤:\n1. <title> [TESTABLE|VERIFY_ONLY]\n..."
+10. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
+11. Proceed immediately to Phase 5
 
 ---
 
@@ -206,7 +239,8 @@ all steps using JIT file reading (reads real code before each step, not predicti
 3. Build the implementer prompt:
    - `projectDir`: absolute path
    - `branch`: from plan.json
-   - `steps`: the full steps array from plan.json
+   - `steps`: the full steps array from plan.json (includes testability + testSpec per step)
+   - `testInfra`: from plan.json (test command + framework; null if no test infra)
    - For each step, extract the relevant `designSection` content from tech-design.md
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
    - **`conventionFiles`**: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths discovered in PLAN step 2

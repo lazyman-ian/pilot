@@ -91,6 +91,19 @@ an existing store file. This enables just-in-time pattern discovery during imple
 
 ## Testing Strategy
 
+Structure this section so the PLAN phase can derive testability classification per step.
+
+### Testable Components
+| Component | Test Type | Key Assertions | Test Pattern Reference |
+|-----------|-----------|---------------|----------------------|
+List each new business logic function, store, API service, or interactive UI component.
+Specify unit vs integration test. List 2-4 key assertions per component.
+Reference an existing test file in the project as the pattern to follow.
+
+### Verify-Only Components
+List components that don't need unit tests (types, i18n, routes, config, CSS).
+These are verified by build/compile or VISUAL_CHECK.
+
 ## Risks & Open Questions
 
 Be CONCRETE. Reference actual file paths. Prefer minimal changes over clever architectures.

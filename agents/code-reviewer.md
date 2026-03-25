@@ -60,5 +60,10 @@ PLAN_COVERAGE:
 - ✅ Step 1: "title" — implemented in <file>
 - ❌ Step 7: "unit tests" — missing, design required tests
 
+TEST_COVERAGE:
+- ✅ Step 1 (TESTABLE): myhome.test.ts — 3 assertions passing
+- ⏭️ Step 2 (VERIFY_ONLY): no test required
+- ❌ Step 5 (TESTABLE): test file missing
+
 SUMMARY: <one paragraph>
 ```
