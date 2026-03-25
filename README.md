@@ -66,9 +66,9 @@ claude --plugin-dir /path/to/agent-dev
   │        │  (Parent + MCP)       │          │                    │
   │        └───────────┬───────────┘          │                    │
   │                    ├──── Notion MCP ──────────────────────────>│
-  │                    │<─── Problem+Solution+ACs ────────────────│
+  │                    │<─── Problem → Solution → Design ─────────│
   │                    ├──── Figma MCP ──────────────────────────>│
-  │                    │<─── design tokens ──────────────────────-│
+  │                    │<─── component hierarchy + tokens ────────│
   │                    │                      │                    │
   │                    │  >> requirement.json  │                    │
   │                    │  >> state.json        │                    │
@@ -77,19 +77,22 @@ claude --plugin-dir /path/to/agent-dev
   │        │  Phase 1.5: RESOLVE   │          │                    │
   │        │  (Parent)             │          │                    │
   │        └───────────┬───────────┘          │                    │
-  │                    │  build projectQueue   │                    │
-  │                    │  set targetProject    │                    │
-  │                    │  verify git + deps    │                    │
+  │                    │  verify affected projects                  │
+  │                    │  build projectQueue (ordered by dep)       │
+  │                    │  set targetProject = queue[0]              │
+  │                    │  verify git status + deps                  │
   │                    │                      │                    │
-  │     ┌──────────────┴──────────────────────┴────────┐           │
-  │     │         FOR EACH PROJECT IN QUEUE             │           │
-  │     └──────────────┬──────────────────────┬────────┘           │
+  │  ┌─────────────────┴──────────────────────┴───────────────┐    │
+  │  │              FOR EACH PROJECT IN QUEUE                  │    │
+  │  └─────────────────┬──────────────────────┬───────────────┘    │
   │                    │                      │                    │
   │        ┌───────────┴───────────┐          │                    │
   │        │  Phase 2: DESIGN      │          │                    │
   │        └───────────┬───────────┘          │                    │
+  │                    │  + cross-project-summary.md (if exists)    │
   │                    ├── spawn ─────────────>│                    │
   │                    │              @tech-designer (Sonnet)       │
+  │                    │              reads CLAUDE.md + .claude/    │
   │                    │              reads codebase, LSP verify    │
   │                    │              produces architecture +       │
   │                    │              pattern refs + side effects   │
@@ -100,10 +103,11 @@ claude --plugin-dir /path/to/agent-dev
   │        └───────────┬───────────┘          │                    │
   │                    ├── spawn ─────────────>│                    │
   │                    │              @design-reviewer (Opus)       │
+  │                    │              reads CLAUDE.md + .claude/    │
   │                    │              independent skeptical review  │
   │                    │<── VERDICT ──────────│                    │
   │                    │                      │                    │
-  │                    ├─── APPROVE ──────> Phase 4                │
+  │                    ├─── APPROVE (≥60) ─────────> Phase 4       │
   │                    │                      │                    │
   │                    ├─── REVISE ───┐       │                    │
   │                    │              │ (max 3 rounds)              │
@@ -118,6 +122,9 @@ claude --plugin-dir /path/to/agent-dev
   │        │  Phase 4: PLAN        │          │                    │
   │        │  (Parent)             │          │                    │
   │        └───────────┬───────────┘          │                    │
+  │                    │  read CLAUDE.md      │                    │
+  │                    │  glob .claude/rules/ │                    │
+  │                    │    + .claude/steering/│                    │
   │                    │  break design into   │                    │
   │                    │  steps with:         │                    │
   │                    │  - designSection     │                    │
@@ -131,10 +138,16 @@ claude --plugin-dir /path/to/agent-dev
   │        ┌───────────┴───────────┐          │                    │
   │        │  Phase 5: IMPLEMENT   │          │                    │
   │        └───────────┬───────────┘          │                    │
+  │                    │  inject into prompt:  │                    │
+  │                    │  · CLAUDE.md (inline) │                    │
+  │                    │  · convention paths   │                    │
+  │                    │  · design sections    │                    │
+  │                    │  · cross-project ctx  │                    │
   │                    ├── spawn ─────────────>│                    │
   │                    │              @implementer (Sonnet)         │
   │                    │              fresh context per project     │
   │                    │                      │                    │
+  │                    │              step 1: read convention files │
   │                    │              ┌───────┴───────┐            │
   │                    │              │ For each step │            │
   │                    │              │  1. read patternRef        │
@@ -152,13 +165,15 @@ claude --plugin-dir /path/to/agent-dev
   │        ┌───────────┴───────────┐          │                    │
   │        │  Phase 6a: CODE_REVIEW│          │                    │
   │        └───────────┬───────────┘          │                    │
+  │                    │  inject into prompt:  │                    │
+  │                    │  · CLAUDE.md (inline) │                    │
+  │                    │  · convention paths   │                    │
   │                    ├── spawn ─────────────>│                    │
   │                    │              @code-reviewer (Opus)         │
+  │                    │              read convention files         │
   │                    │              git diff, run tests + lint    │
   │                    │              check AC coverage             │
   │                    │<── VERDICT ──────────│                    │
-  │                    │                      │                    │
-  │                    ├─── APPROVE ──────> gate check             │
   │                    │                      │                    │
   │                    ├─── FIX_REQUIRED ─┐   │                    │
   │                    │   (max 2 rounds) │   │                    │
@@ -166,54 +181,63 @@ claude --plugin-dir /path/to/agent-dev
   │                    │<─────────────────┘   │                    │
   │                    │  re-invoke reviewer  │                    │
   │                    │                      │                    │
-  │                    ├─── VISUAL_CHECK gate ─────────────────────│
-  │                    │   figma? + web? + .vue?                   │
+  │                    ├─── APPROVE ──────> VISUAL_CHECK gate      │
+  │                    │                      │                    │
+  │                    │  gate: figma? + web-hybrid? + .vue?        │
   │                    │                      │                    │
   │              ┌─ ALL TRUE ─┐        ┌─ ANY FALSE ─┐            │
   │              │            │        │             │             │
   │              ▼            │        │             ▼             │
   │  ┌───────────────────┐   │        │     skip to Phase 7       │
   │  │ Phase 6b: VISUAL  │   │        │                           │
+  │  │ (MANDATORY)       │   │        │                           │
   │  └─────────┬─────────┘   │        │                           │
+  │            │              │        │                           │
+  │            │  re-read CLAUDE.md    │                           │
+  │            │  + .claude/steering/  │                           │
+  │            │  for dev server cmd   │                           │
   │            │              │        │                           │
   │            ├── Figma MCP: get_screenshot ─────────────────────>│
   │            │<── design screenshot ────────────────────────────-│
+  │            │              │        │                           │
+  │            │  start dev server     │                           │
   │            ├── Chrome DevTools: take_screenshot ──────────────>│
   │            │<── browser screenshot ──────────────────────────-─│
-  │            │                      │                            │
-  │            │  vision compare      │                            │
-  │            │                      │                            │
-  │            ├── MATCH ────────────────> Phase 7                 │
-  │            ├── PARTIAL (minor) ──────> Phase 7                 │
-  │            │                      │                            │
-  │            └── MISMATCH           │                            │
-  │                │                  │                            │
-  │                │  fix CSS/template│                            │
-  │                │  run tsc + lint  │                            │
-  │                │  git commit      │                            │
-  │                │  re-capture      │                            │
-  │                │  re-compare      │                            │
-  │                │                  │                            │
-  │                ├── MATCH ────────────> Phase 7                 │
-  │                └── still MISMATCH ──> Phase 7 (with notes)     │
-  │                    │              │                            │
-  │        ┌───────────┴───────────┐  │                            │
-  │        │  Phase 7: PR          │  │                            │
-  │        └───────────┬───────────┘  │                            │
+  │            │              │        │                           │
+  │            │  vision compare       │                           │
+  │            │              │        │                           │
+  │            ├── MATCH ─────────────────> Phase 7                │
+  │            ├── PARTIAL (minor) ────────> Phase 7               │
+  │            │              │        │                           │
+  │            └── MISMATCH   │        │                           │
+  │                │          │        │                           │
+  │                │  fix CSS/template │                           │
+  │                │  tsc + lint verify│                           │
+  │                │  git commit       │                           │
+  │                │  re-capture       │                           │
+  │                │  re-compare       │                           │
+  │                │  (max 1 round)    │                           │
+  │                │          │        │                           │
+  │                ├── MATCH ─────────────> Phase 7                │
+  │                └── still MISMATCH ───> Phase 7 (with notes)    │
+  │                    │      │        │                           │
+  │        ┌───────────┴──────┴────────┴──────────┐               │
+  │        │  Phase 7: PR                          │               │
+  │        └───────────┬──────────────────────────┘               │
   │                    ├── git push ──────────────────────────────>│
   │                    ├── gh pr create --draft ──────────────────>│
   │                    │<── PR URL ──────────────────────────────-─│
-  │                    │  write telemetry     │                    │
   │                    │                      │                    │
-  │                    ├─── more projects? ───┤                    │
-  │                    │                      │                    │
-  │              ┌── YES ──┐           ┌── NO ──┐                  │
-  │              │         │           │        │                  │
-  │              ▼         │           │        ▼                  │
-  │  ┌──────────────────┐ │           │  COMPLETED                │
-  │  │Phase 8: TRANSITION│ │          │  report all PRs            │
-  │  └────────┬─────────┘ │           │                            │
+  │                    ├─── more projects in queue? ──┐            │
+  │                    │                      │       │            │
+  │              ┌── YES ──┐           ┌── NO ──┐    │            │
+  │              │         │           │        │    │            │
+  │              ▼         │           │        ▼    │            │
+  │  ┌──────────────────┐ │           │  COMPLETED   │            │
+  │  │Phase 8: TRANSITION│ │          │  write telemetry           │
+  │  └────────┬─────────┘ │           │  report all PRs            │
   │           │            │           │                            │
+  │           │ write telemetry        │                            │
   │           │ archive artifacts      │                            │
   │           │ write cross-project    │                            │
   │           │   summary.md           │                            │
@@ -222,17 +246,19 @@ claude --plugin-dir /path/to/agent-dev
   │           │   fields               │                            │
   │           │            │           │                            │
   │           └── loop back to Phase 2: DESIGN ──────>             │
-  │     └──────────────────────────────────────────────┘           │
+  │  └─────────────────────────────────────────────────┘           │
   │                    │                      │                    │
   │  "Pipeline 完成"  <│                      │                    │
   │  PRs + scores      │                      │                    │
   ▼                    ▼                      ▼                    ▼
 
 Legend:
-  ──>     sync call / trigger
-  >> file write artifact to disk
-  spawn   create subagent (isolated context)
-  ─┐ ─┘   loop / retry
+  ──>          sync call / trigger
+  >> file      write artifact to disk
+  spawn        create subagent (isolated context)
+  ─┐ ─┘        loop / retry
+  inject       parent includes content in subagent prompt
+               (subagents don't auto-load project docs)
 ```
 
 ## Architecture
