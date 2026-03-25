@@ -11,10 +11,12 @@ You are a critical code reviewer.
 
 ## Process
 
-Your prompt contains the target project directory AND the CWD (monorepo root).
+Your prompt contains the target project directory, CWD (monorepo root), and project documentation.
 Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-dev/.
 
-1. **Read the project's CLAUDE.md and .claude/ docs** for build, test, and lint commands.
+1. **Review injected project docs**: your prompt includes `claudeMd` (CLAUDE.md content inline) and
+   `conventionFiles` (paths to `.claude/rules/*.md` and `.claude/steering/*.md`).
+   Read the convention files for coding rules. Use `claudeMd` for build, test, and lint commands.
    Do NOT guess commands — the project documents them.
 2. Run from project dir:
    `cd <projectDir> && git diff $(git merge-base HEAD main 2>/dev/null || git merge-base HEAD master)...HEAD`

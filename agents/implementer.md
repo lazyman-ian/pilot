@@ -16,11 +16,13 @@ Your prompt contains:
 - `branch`: the git branch to work on (already created)
 - `steps`: the implementation steps (from plan.json)
 - Per-step: `designSection` content from tech-design.md, `patternRef` file path, `dependsOn` list
+- `claudeMd`: the project's CLAUDE.md content (inline — you do NOT need to read this file)
+- `conventionFiles`: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths to read
 - Optionally: `crossProjectContext` — API contracts and decisions from prior projects
 
 ## Process
 
-1. **Read project docs first**: `<projectDir>/CLAUDE.md` and `.claude/` docs for conventions, build/test/lint commands.
+1. **Read convention files**: read each path listed in `conventionFiles` for coding rules, patterns, and constraints. The `claudeMd` content is already in your prompt — use it for build/test/lint commands.
 
 2. **For each step (sequential)**:
    a. **Read pattern reference** — if `patternRef` is given, read that file to learn the project's conventions for this type of code

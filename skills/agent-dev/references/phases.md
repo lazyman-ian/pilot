@@ -147,18 +147,22 @@ Determine which project(s) to work in and build the project queue.
 YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`.
 
 1. Read `<projectDir>/CLAUDE.md` and `.claude/` docs for build, test, lint commands.
-2. Read `.agent-dev/tech-design.md`, break into atomic steps:
+2. **Discover project convention files** for subagent context injection:
+   - Glob `<projectDir>/.claude/rules/*.md`
+   - Glob `<projectDir>/.claude/steering/*.md`
+   - Record found paths — these will be passed to implementer and code-reviewer prompts.
+3. Read `.agent-dev/tech-design.md`, break into atomic steps:
    - Each step: 1-3 files, has verification command (from project docs)
    - Order: types/schema → backend → API → frontend → tests
    - For each step, identify:
      - `designSection`: which section of tech-design.md describes this step
      - `patternRef`: an existing file in the project that serves as the pattern to follow (e.g., an existing store for a new store)
      - `dependsOn`: which prior step indices this step depends on
-3. Detect base branch:
+4. Detect base branch:
    `git -C <projectDir> rev-parse --abbrev-ref origin/HEAD 2>/dev/null`
    This returns e.g. "origin/main" — strip the "origin/" prefix.
    Fallback: main → master
-4. Write `.agent-dev/plan.json`:
+5. Write `.agent-dev/plan.json`:
    ```json
    {
      "totalSteps": N,
@@ -179,11 +183,11 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      ]
    }
    ```
-5. Create branch: `git -C <projectDir> checkout -b <branchName>`
-6. Log plan summary:
+6. Create branch: `git -C <projectDir> checkout -b <branchName>`
+7. Log plan summary:
    "项目: <targetProject>\n分支: <branchName>\n步骤:\n1. <title>\n..."
-7. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
-8. Proceed immediately to Phase 5
+8. Update state.json: phase → IMPLEMENT, branch, baseBranch, currentStep → 1
+9. Proceed immediately to Phase 5
 
 ---
 
@@ -193,19 +197,22 @@ Delegate to `@agent-dev:implementer` — a subagent with fresh context that impl
 all steps using JIT file reading (reads real code before each step, not predictions).
 
 1. Read `.agent-dev/plan.json` and `.agent-dev/tech-design.md`
-2. Build the implementer prompt:
+2. Read `<projectDir>/CLAUDE.md` (the implementer subagent cannot auto-load it)
+3. Build the implementer prompt:
    - `projectDir`: absolute path
    - `branch`: from plan.json
    - `steps`: the full steps array from plan.json
    - For each step, extract the relevant `designSection` content from tech-design.md
+   - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
+   - **`conventionFiles`**: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths discovered in PLAN step 2
    - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
-3. Invoke `@agent-dev:implementer` with the built prompt
-4. Parse the returned summary:
+4. Invoke `@agent-dev:implementer` with the built prompt
+5. Parse the returned summary:
    - `COMPLETED_STEPS` → update state.json: completedSteps
    - `SKIPPED_STEPS` → log warnings
    - `ISSUES` → if any design/code discrepancies, log them for code review
-5. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
-6. Update state.json: phase → CODE_REVIEW
+6. Verify commits exist: `git -C <projectDir> log --oneline <baseBranch>..HEAD`
+7. Update state.json: phase → CODE_REVIEW
 
 **If implementer reports failures:**
 - Steps that failed verification but were committed → let code-reviewer catch them
@@ -219,10 +226,13 @@ all steps using JIT file reading (reads real code before each step, not predicti
 Run sequentially: code review first, then visual check.
 
 ### 6a: Code Review (always runs)
-1. Invoke `@agent-dev:code-reviewer` with prompt:
-   "Project directory: <projectDir>. Pipeline artifacts at: <CWD>/.agent-dev/"
-2. Parse results
-3. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
+1. Read `<projectDir>/CLAUDE.md` (code-reviewer subagent cannot auto-load it)
+2. Invoke `@agent-dev:code-reviewer` with prompt containing:
+   - "Project directory: <projectDir>. Pipeline artifacts at: <CWD>/.agent-dev/"
+   - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline)
+   - **`conventionFiles`**: `.claude/rules/*.md` and `.claude/steering/*.md` paths from PLAN
+3. Parse results
+4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
    {
      "testResult": "PASS|FAIL",
@@ -234,12 +244,12 @@ Run sequentially: code review first, then visual check.
      "summary": "..."
    }
    ```
-4. Decision tree:
-   - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, commit, increment codeReviewCount, re-invoke code-reviewer from step 1
+5. Decision tree:
+   - **FIX_REQUIRED + codeReviewCount < 2**: fix issues yourself, commit, increment codeReviewCount, re-invoke code-reviewer from step 2
    - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
-   - **APPROVE**: proceed to VISUAL_CHECK gate (step 5)
-5. **VISUAL_CHECK gate** — check ALL three conditions:
+   - **APPROVE**: proceed to VISUAL_CHECK gate (step 6)
+6. **VISUAL_CHECK gate** — check ALL three conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - `targetProject` is `web-hybrid`
    - Implementation includes `.vue` file changes (check `git diff --name-only <baseBranch>..HEAD | grep '\.vue$'`)
