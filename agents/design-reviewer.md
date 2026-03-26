@@ -33,11 +33,56 @@ Verify each claim against the actual codebase AND project documentation:
 7. **PERFORMANCE**: N+1 queries, missing indexes, unnecessary re-renders?
 8. **TESTABILITY**: Can each change be verified?
 
+## Hard Gates (check BEFORE scoring — any fail → automatic REVISE)
+
+1. **API/Backend Change Grounding Gate**:
+   For EVERY item in the design's "API Changes" and "Data Model Changes" sections:
+   → Find the specific AC in requirement.json that demands this change
+   → If no AC references this change → flag as `[CRITICAL] Ungrounded assumption`
+   → Increment `groundingCheck.ungrounded`
+
+2. **Cross-System Coupling Gate**:
+   If the design adds a new field/parameter sent from client → server:
+   → Is there a simpler client-only alternative that satisfies the ACs?
+   → If yes → flag as `[CRITICAL] Unnecessary cross-system coupling`
+
+Any `groundingCheck.ungrounded > 0` → VERDICT must be REVISE (script-enforced by `validate-review.sh`).
+
+## Calibration Example
+
+### Ungrounded API Change (Android AB Test — real case)
+
+Design adds `@Field("ab_group")` to the Retrofit API endpoint.
+Requirement says: "CTR tracking" + "feature flag gated by Remote Config".
+Remote Config is server-synced — backend already knows the user's group assignment.
+
+```
+❌ WRONG:
+CONFIDENCE: 82
+VERDICT: APPROVE
+(reviewer notes "Consider if API field is needed" as MINOR)
+
+✅ CORRECT:
+CONFIDENCE: 52
+VERDICT: REVISE
+groundingCheck: { apiChangesInDesign: 1, groundedInAC: 0, ungrounded: 1 }
+ISSUES:
+- [CRITICAL] API Changes: Ungrounded assumption — no AC demands client→server
+  ab_group transmission. Remote Config provides server-side group assignment.
+  Suggestion: Remove @Field("ab_group") from API. Keep ab_group in analytics
+  events only (which IS required by CTR tracking ACs).
+```
+
 ## Output Format (MUST follow exactly)
 
 ```
 CONFIDENCE: <0-100>
 VERDICT: <APPROVE|REVISE|ESCALATE>
+
+GROUNDING_CHECK:
+- API changes in design: N
+- Grounded in AC: N
+- Ungrounded: N
 
 ISSUES:
 - [CRITICAL] <area>: <description>. Suggestion: <fix>
@@ -50,6 +95,26 @@ STRENGTHS:
 SUMMARY:
 <one paragraph overall assessment>
 ```
+
+After the structured text, output a JSON block for the parent to write to `.agent-dev/review.json`:
+
+```json
+{
+  "confidence": 75,
+  "verdict": "APPROVE",
+  "groundingCheck": {
+    "apiChangesInDesign": 0,
+    "groundedInAC": 0,
+    "ungrounded": 0
+  },
+  "issues": [
+    {"severity": "MINOR", "description": "...", "suggestion": "..."}
+  ],
+  "summary": "..."
+}
+```
+
+If the design has no API Changes section (or it says "No API changes required"), set all `groundingCheck` values to 0.
 
 Scoring guide:
 - 90-100: Excellent, no issues (suspicious if no issues found — look harder)
