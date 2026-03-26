@@ -148,15 +148,28 @@ Determine which project(s) to work in and build the project queue.
    {
      "confidence": 82,
      "verdict": "APPROVE",
+     "groundingCheck": {
+       "apiChangesInDesign": 0,
+       "groundedInAC": 0,
+       "ungrounded": 0
+     },
      "issues": [{"severity": "MINOR", "description": "..."}],
      "summary": "..."
    }
    ```
 4. Decision tree (**VERDICT is primary, confidence is secondary**):
-   - **VERDICT == APPROVE** (any confidence >= 60): proceed to PLAN
+   - **VERDICT == APPROVE** + confidence ≥ 75 + `groundingCheck.ungrounded == 0`:
+     → **Early-stop**: proceed to PLAN immediately
+     → Update state.json: phase → PLAN, reviewConfidence → N
+   - **VERDICT == APPROVE** + confidence ≥ 60 (but < 75 or has grounding notes):
+     → Proceed to PLAN (standard path)
      → Update state.json: phase → PLAN, reviewConfidence → N
    - **VERDICT == APPROVE BUT confidence < 60**: warn user, ask to confirm or revise
-   - **VERDICT == REVISE**: revision loop
+   - **VERDICT == REVISE** + `groundingCheck.ungrounded > 0`:
+     → **Fast-fail**: back to Phase 2 with TARGETED feedback — designer must ONLY
+       remove/relocate ungrounded items, not full revision
+     → Increment reviewRevisionCount in state.json
+   - **VERDICT == REVISE** (other issues):
      → If reviewRevisionCount < 3 → back to Phase 2 with issues as feedback
      → Increment reviewRevisionCount in state.json
    - **VERDICT == ESCALATE** OR reviewRevisionCount >= 3:
@@ -204,7 +217,6 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      - `TESTABLE`: business logic, API service, store/state, UI component with interactive behavior
      - `VERIFY_ONLY`: type definitions, i18n, routes, config, CSS (verified by build or VISUAL_CHECK)
    - For TESTABLE steps, add `testSpec`:
-     - `acRefs`: which acceptance criteria this step addresses
      - `testFile`: path for the test file (follow project test conventions)
      - `testPatternRef`: an existing test file to follow as pattern
      - `assertions`: human-readable list of what the test should verify
@@ -213,6 +225,15 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
      - `designSection`: which section of tech-design.md describes this step
      - `patternRef`: an existing file to follow as implementation pattern
      - `dependsOn`: which prior step indices this step depends on
+5b. **Requirement traceability check** — for each step in the plan:
+    - Identify which AC(s) this step addresses → record as `acRefs: ["AC-1", "AC-5"]`
+    - If a step cannot trace to ANY AC:
+      → If it's infrastructure/scaffolding required by other steps → set `"scaffolding": true`, `acRefs: []`
+      → If it's a standalone feature/API change with no AC backing → REMOVE the step.
+        It is an ungrounded addition from the design phase.
+    - If tech-design.md has API Changes marked `[ASSUMPTION]` → do NOT include in plan
+      unless you independently verify an AC demands it
+    - The `validate-plan.sh` script enforces: every non-scaffolding step must have non-empty `acRefs`
 6. Detect base branch:
    `git -C <projectDir> symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#refs/remotes/origin/##'`
    This resolves the symbolic ref to the actual branch name (e.g., "main", not "HEAD").
@@ -236,8 +257,9 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
          "description": "...",
          "designSection": "UI Changes §1",
          "testability": "TESTABLE",
+         "acRefs": ["AC-2", "AC-8"],
+         "scaffolding": false,
          "testSpec": {
-           "acRefs": ["AC-2", "AC-8"],
            "testFile": "packages/store/__tests__/myhome.test.ts",
            "testPatternRef": "packages/store/__tests__/watch.test.ts",
            "assertions": ["add() updates claimedIdSet", "remove() clears from set", "fetchList() populates homes"]
@@ -255,6 +277,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
          "description": "...",
          "designSection": "i18n",
          "testability": "VERIFY_ONLY",
+         "acRefs": ["AC-3"],
+         "scaffolding": false,
          "filesCreate": [],
          "filesModify": ["packages/common/i18n/translation/en.ts"],
          "patternRef": null,
@@ -329,6 +353,12 @@ Run sequentially: code review first, then visual check.
    - **`baseBranch`**: from plan.json (code-reviewer needs it for diff range)
    - **`baselineFailures`**: from plan.json (pre-existing test failures — not regressions)
    - **`baselineBuildFailure`**: from plan.json (pre-existing build failure — not a regression)
+   - **`qaCapabilities`**: `{ "web": true, "mobile": false }` — set `web: true` when ALL of:
+     (1) `targetProject == "web-hybrid"`,
+     (2) `git diff --name-only` includes `.vue/.scss/.css` files,
+     (3) `claudeMd` documents a dev server command.
+     If Figma design exists, also pre-fetch screenshot via Figma MCP and pass as `figmaScreenshot`.
+     Pass `devServerCommand`, `devUrl`, and `affectedRoutes` (inferred from diff + router).
 3. Parse results
 4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
    ```json
@@ -337,14 +367,23 @@ Run sequentially: code review first, then visual check.
      "lintResult": "PASS|FAIL",
      "confidence": 82,
      "verdict": "APPROVE",
+     "rubricScores": {
+       "correctness": 8,
+       "completeness": 8,
+       "convention": 8,
+       "regression": 9
+     },
+     "qaResult": "PASS|FAIL|SKIPPED",
+     "qaDetails": [],
+     "visualMatch": {"verdict": "SKIPPED", "matches": [], "mismatches": []},
      "issues": [],
      "requirementsCoverage": {"covered": [], "missing": []},
      "summary": "..."
    }
    ```
 5. Decision tree:
-   - **FIX_REQUIRED + codeReviewCount < 2**: invoke implementer fix mode (see below), increment codeReviewCount, then re-invoke code-reviewer from step 2
-   - **FIX_REQUIRED + codeReviewCount >= 2** or unresolvable:
+   - **FIX_REQUIRED + codeReviewCount < 3**: invoke implementer fix mode (see below), increment codeReviewCount, then re-invoke code-reviewer from step 2
+   - **FIX_REQUIRED + codeReviewCount >= 3** or unresolvable:
      → phase → ESCALATED, metrics.interventions += 1, present to user
    - **APPROVE BUT testResult=FAIL or lintResult=FAIL**: treat as FIX_REQUIRED — invoke implementer fix mode, re-invoke code-reviewer
    - **APPROVE + testResult=PASS (or SKIPPED if no test infra) + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
@@ -369,6 +408,16 @@ Run sequentially: code review first, then visual check.
 ---
 
 ## Phase 6b: VISUAL_CHECK (MANDATORY when gate passed in 6a step 5)
+
+**Fallback mode**: If `code-review.json` contains `qaResult` that is NOT `"SKIPPED"` and NOT absent,
+the code-reviewer already performed interactive QA. In this case:
+1. Write `.agent-dev/visual-review.json`:
+   ```json
+   { "verdict": "DELEGATED_TO_CODE_REVIEWER", "qaResult": "<value from code-review.json>" }
+   ```
+2. Skip the rest of Phase 6b → proceed to Phase 7 (PR)
+
+If `qaResult` is `"SKIPPED"` or absent, execute the full VISUAL_CHECK flow below.
 
 If you reached this phase, the gate in Phase 6a confirmed: Figma designs exist,
 target is web-hybrid, and .vue files were changed. **Do NOT skip this phase.**
