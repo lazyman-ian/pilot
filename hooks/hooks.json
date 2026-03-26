@@ -30,8 +30,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/patch-state-session.sh\"",
-            "timeout": 5
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/validate-artifacts.sh\"",
+            "timeout": 5,
+            "statusMessage": "Validating pipeline artifact..."
           }
         ]
       }
