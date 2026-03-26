@@ -53,7 +53,7 @@ claude --plugin-dir /path/to/agent-dev
 
 ```
 ═══════════════════════════════════════════════════════════════════════
-                    agent-dev v1.4.0 Pipeline
+                    agent-dev v1.6.0 Pipeline
 ═══════════════════════════════════════════════════════════════════════
 
  User                Parent               Subagents            External
@@ -188,8 +188,9 @@ claude --plugin-dir /path/to/agent-dev
   │                    │<── VERDICT ──────────│                    │
   │                    │                      │                    │
   │                    ├─── FIX_REQUIRED ─┐   │                    │
-  │                    │   (max 2 rounds) │   │                    │
-  │                    │   parent fixes   │   │                    │
+  │                    │   (max 3 rounds) │   │                    │
+  │                    │   implementer    │   │                    │
+  │                    │   fix mode       │   │                    │
   │                    │<─────────────────┘   │                    │
   │                    │  re-invoke reviewer  │                    │
   │                    │                      │                    │
@@ -282,9 +283,9 @@ Legend:
 - **Context injection** — subagents don't auto-load project docs; parent injects CLAUDE.md + conventionFiles + validated commands. All persisted in plan.json for resume safety
 - **Complexity routing** — simple tasks (≤3 ACs) skip DESIGN+REVIEW for faster turnaround
 - **Multi-project** — auto-transitions between projects; per-project metrics reset; cross-project-summary.md carries API contracts
-- **Visual check** — Figma vs browser screenshot comparison via merge-base (.vue/.scss/.css gate); writes SKIPPED verdict if can't complete
-- **Quality gates** — environment health check, RUBRIC_SCORES (4 dimensions × /10), PLAN_COVERAGE, TEST_COVERAGE, baseline-aware test evaluation
-- **Gate scripts** — hook enforcement (exit 2 blocks), not prompt instructions
+- **Interactive QA** — code-reviewer uses Chrome DevTools MCP for browser-based functional testing (web-hybrid); VISUAL_CHECK retained as fallback
+- **Quality gates** — environment health check, RUBRIC_SCORES (4 dimensions × /10, script-enforced consistency), requirement traceability (acRefs), grounding checks, PLAN_COVERAGE, TEST_COVERAGE, baseline-aware test evaluation
+- **Gate scripts** — `validate-artifacts.sh` dispatcher routes artifact writes to validators (exit 2 blocks scoring bias, ungrounded assumptions, missing traceability)
 
 ## Usage Guide
 

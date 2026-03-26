@@ -16,13 +16,17 @@ agents/                       ← Subagent definitions (markdown frontmatter + s
   tech-designer.md            ← Opus, READ-ONLY, generates tech design + testable components table
   design-reviewer.md          ← Opus, READ-ONLY, skeptical independent review
   implementer.md              ← Opus, R/W, TDD for testable steps + JIT implementation
-  code-reviewer.md            ← Opus, has Bash, runs tests + lint + checks plan/test coverage
+  code-reviewer.md            ← Opus, has Bash + Chrome DevTools MCP, runs tests + lint + interactive QA + checks plan/test coverage
 hooks/hooks.json              ← Hook definitions (SessionStart, PreToolUse, PostToolUse, etc.)
 hooks/stop-hook.sh            ← Prevents pipeline session from stopping mid-pipeline
 scripts/                      ← Shell scripts for gates, health checks, context recovery
+  validate-artifacts.sh       ← PostToolUse(Write) dispatcher — routes to artifact validators
+  validate-plan.sh            ← Blocks plan.json if non-scaffolding steps have empty acRefs
+  validate-code-review.sh     ← Blocks code-review.json on scoring inconsistencies (FIX_REQUIRED > 72, rubric < 5)
+  validate-review.sh          ← Blocks review.json if ungrounded API changes + APPROVE
   agent-dev-gate.sh           ← Pipeline gate enforcement (exit 2 = block)
   check-deps.sh               ← SessionStart dependency check (warns, never blocks)
-  patch-state-session.sh      ← Auto-injects sessionId into state.json on Write
+  patch-state-session.sh      ← (Legacy) sessionId injection — now inlined in validate-artifacts.sh
   post-compact-resume.sh      ← PostCompact hook: restores pipeline context after compaction
   health-check.sh             ← Detects stalled pipelines, sends macOS notifications
   write-telemetry.sh          ← Appends pipeline run metrics to ~/.agent-dev-telemetry.tsv
