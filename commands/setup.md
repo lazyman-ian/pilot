@@ -1,9 +1,9 @@
 ---
-description: "Setup agent-dev for monorepo: merge sub-project .claude/ capabilities"
+description: "Setup pilot for monorepo: merge sub-project .claude/ capabilities"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-monorepo.sh:*)"]
 ---
 
-# agent-dev setup
+# pilot setup
 
 Run the setup script to merge sub-project `.claude/` capabilities into monorepo root:
 

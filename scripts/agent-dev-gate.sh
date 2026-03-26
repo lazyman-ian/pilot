@@ -1,17 +1,17 @@
 #!/bin/bash
-# agent-dev pipeline gate checker
+# pilot pipeline gate checker
 # Usage: agent-dev-gate.sh <gate-name> [cwd]
 # Exit 0 = pass, Exit 2 = block (message on stderr)
 
 GATE="$1"
 CWD="${2:-$PWD}"
 
-# Find .agent-dev/state.json by walking up from CWD
+# Find .pilot/state.json by walking up from CWD
 STATE=""
 DIR="$CWD"
 while [ "$DIR" != "/" ]; do
-  if [ -f "$DIR/.agent-dev/state.json" ]; then
-    STATE="$DIR/.agent-dev/state.json"
+  if [ -f "$DIR/.pilot/state.json" ]; then
+    STATE="$DIR/.pilot/state.json"
     break
   fi
   DIR=$(dirname "$DIR")
@@ -22,7 +22,7 @@ done
 
 # Check jq is available
 if ! command -v jq &>/dev/null; then
-  echo "WARNING: jq not installed, agent-dev gate check skipped" >&2
+  echo "WARNING: jq not installed, pilot gate check skipped" >&2
   exit 0
 fi
 

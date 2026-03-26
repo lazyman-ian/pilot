@@ -180,8 +180,8 @@ Add `validate-artifacts.sh` to PostToolUse(Write). Existing `patch-state-session
 | `hooks/hooks.json` | MODIFY | Add validate-artifacts to PostToolUse(Write) |
 | `agents/code-reviewer.md` | MODIFY | +rubricScores output + few-shot + constraints + double-layer process |
 | `agents/design-reviewer.md` | MODIFY | +groundingCheck output + few-shot + hard gates |
-| `skills/agent-dev/references/phases.md` | MODIFY | Phase 4 +acRefs + traceability check |
-| `skills/agent-dev/SKILL.md` | MODIFY | plan.json example update (acRefs) |
+| `skills/pilot/references/phases.md` | MODIFY | Phase 4 +acRefs + traceability check |
+| `skills/pilot/SKILL.md` | MODIFY | plan.json example update (acRefs) |
 
 ---
 
@@ -201,7 +201,7 @@ VISUAL_CHECK phase retained as fallback when code-reviewer skips interactive QA.
 
 Current: `Read, Glob, Grep, Bash, LSP`
 
-New: `Read, Glob, Grep, Bash, LSP, mcp__plugin_agent-dev_chrome-devtools__*`
+New: `Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*`
 
 ### 2.3 Interactive QA Protocol
 
@@ -269,7 +269,7 @@ If qaResult == SKIPPED or absent:
 | File | Change Type | Description |
 |------|-------------|-------------|
 | `agents/code-reviewer.md` | MODIFY | +Chrome DevTools tools + Interactive QA section + qa output fields |
-| `skills/agent-dev/references/phases.md` | MODIFY | Phase 6a +qaCapabilities construction, Phase 6b simplified to fallback |
+| `skills/pilot/references/phases.md` | MODIFY | Phase 6a +qaCapabilities construction, Phase 6b simplified to fallback |
 | `scripts/validate-code-review.sh` | MODIFY | +qaResult warning for web-hybrid |
 
 ---
@@ -303,7 +303,7 @@ Requirements are fine-grained with clear ACs — many rounds are not typical. Fo
 
 | File | Change Type | Description |
 |------|-------------|-------------|
-| `skills/agent-dev/references/phases.md` | MODIFY | Phase 3 +early-stopping/fast-fail, Phase 6a code review limit 2→3 |
+| `skills/pilot/references/phases.md` | MODIFY | Phase 3 +early-stopping/fast-fail, Phase 6a code review limit 2→3 |
 | `scripts/validate-code-review.sh` | MODIFY | +early-stopping hint (warn, no block) |
 
 ---
@@ -343,7 +343,7 @@ Replace descriptive text in CLAUDE.md `### Architecture Stress Testing` with exe
 1. Pick a completed pipeline run with known results
 2. Re-run same requirement.json with variant architecture
 3. Compare artifacts (review.json, code-review.json, git diff)
-4. Record in `.agent-dev/experiments/<model>-<date>.md`
+4. Record in `.pilot/experiments/<model>-<date>.md`
 
 ### 4.3 Files Affected
 
@@ -364,8 +364,8 @@ Replace descriptive text in CLAUDE.md `### Architecture Stress Testing` with exe
 | `hooks/hooks.json` | ✦ | | | | MODIFY |
 | `agents/code-reviewer.md` | ✦ | ✦ | | | MODIFY |
 | `agents/design-reviewer.md` | ✦ | | | | MODIFY |
-| `skills/agent-dev/references/phases.md` | ✦ | ✦ | ✦ | | MODIFY |
-| `skills/agent-dev/SKILL.md` | ✦ | | | | MODIFY |
+| `skills/pilot/references/phases.md` | ✦ | ✦ | ✦ | | MODIFY |
+| `skills/pilot/SKILL.md` | ✦ | | | | MODIFY |
 | `CLAUDE.md` | | | | ✦ | MODIFY |
 
 **4 new scripts, 6 modified files, 0 new agents.**

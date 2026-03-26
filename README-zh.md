@@ -1,4 +1,4 @@
-# agent-dev
+# pilot
 
 Claude Code 自动化开发流水线：从 Notion 需求到 Draft PR，全程自主运行。
 
@@ -19,10 +19,10 @@ Claude Code 自动化开发流水线：从 Notion 需求到 Draft PR，全程自
 
 ```bash
 # 从 GitHub 安装
-claude plugin install github:housesigma/agent-dev
+claude plugin install github:housesigma/pilot
 
 # 本地开发
-claude --plugin-dir /path/to/agent-dev
+claude --plugin-dir /path/to/pilot
 ```
 
 ## 前置要求
@@ -37,16 +37,16 @@ claude --plugin-dir /path/to/agent-dev
 
 ```bash
 # 启动流水线
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 
 # 恢复中断的流水线
-/agent-dev resume
+/pilot resume
 
 # 查看流水线状态
-/agent-dev status
+/pilot status
 
 # 清理流水线产物
-/agent-dev clean
+/pilot clean
 ```
 
 ### 推荐启动方式
@@ -55,12 +55,12 @@ claude --plugin-dir /path/to/agent-dev
 # 在目标项目目录中启动（自动加载项目的 .claude/ hooks/rules）
 cd ~/housesigma/web-hybrid
 claude
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 
 # 或从 monorepo 根目录启动（支持多项目）
 cd ~/housesigma
 claude
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 ```
 
 ### 流水线运行中
@@ -73,7 +73,7 @@ claude
 ✅ web-hybrid PR: https://github.com/.../pull/321 (score: 90)
 ✅ ios PR: https://github.com/.../pull/28 (score: 100)
 ✅ android PR: https://github.com/.../pull/26 (score: 100)
-Pipeline 完成. 清理 .agent-dev/ 文件？
+Pipeline 完成. 清理 .pilot/ 文件？
 ```
 
 ### 何时需要人工介入
@@ -121,7 +121,7 @@ FETCH → RESOLVE → [DESIGN → REVIEW →] PLAN → IMPLEMENT → CODE_REVIEW
 | `validate-plan.sh` | 写入 plan.json | 非脚手架步骤必须有 acRefs；AC 编号不超范围 |
 | `validate-code-review.sh` | 写入 code-review.json | FIX_REQUIRED → 信心分 ≤ 72；维度 < 5 → 必须 FIX_REQUIRED；信心分 ≈ 维度均值 × 10 |
 | `validate-review.sh` | 写入 review.json | 必须包含 groundingCheck；未溯源 API 变更 → 不能 APPROVE |
-| `validate-artifacts.sh` | 所有 .agent-dev/ 写入 | 调度器：路由到对应验证器 + state.json session 注入 |
+| `validate-artifacts.sh` | 所有 .pilot/ 写入 | 调度器：路由到对应验证器 + state.json session 注入 |
 
 ### 复杂度路由
 
@@ -158,7 +158,7 @@ RESOLVE 阶段根据需求范围分类：
 
 ### 遥测
 
-每次流水线运行追加到 `~/.agent-dev-telemetry.tsv`：
+每次流水线运行追加到 `~/.pilot-telemetry.tsv`：
 
 | 维度 | 分值 | 计算方式 |
 |------|------|---------|
@@ -169,13 +169,13 @@ RESOLVE 阶段根据需求范围分类：
 
 ```bash
 # 查看遥测数据
-column -t -s $'\t' ~/.agent-dev-telemetry.tsv
+column -t -s $'\t' ~/.pilot-telemetry.tsv
 ```
 
 ## 流水线产物
 
 ```
-.agent-dev/
+.pilot/
 ├── state.json                 ← 流水线状态机
 ├── requirement.json           ← 获取的需求（跨项目共享）
 ├── tech-design.md             ← 架构设计（当前项目）
@@ -191,10 +191,10 @@ column -t -s $'\t' ~/.agent-dev-telemetry.tsv
 
 ```bash
 # 查看当前状态
-cat .agent-dev/state.json | jq '{phase, targetProject, completedSteps}'
+cat .pilot/state.json | jq '{phase, targetProject, completedSteps}'
 
 # 停滞检测（超过 10 分钟无状态更新发送 macOS 通知）
-bash /path/to/agent-dev/scripts/health-check.sh 10
+bash /path/to/pilot/scripts/health-check.sh 10
 ```
 
 ## 目标 Monorepo 布局
@@ -208,14 +208,14 @@ bash /path/to/agent-dev/scripts/health-check.sh 10
 └── realagent-datafeed/            (PHP, Phalcon)
 ```
 
-每个子项目是独立的 git 仓库。`.agent-dev/` 产物始终在 CWD（monorepo 根目录或子项目目录）。
+每个子项目是独立的 git 仓库。`.pilot/` 产物始终在 CWD（monorepo 根目录或子项目目录）。
 
 ## 开发
 
 ### 本地开发
 
 ```bash
-claude --plugin-dir /path/to/agent-dev
+claude --plugin-dir /path/to/pilot
 ```
 
 ### 测试

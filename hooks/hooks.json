@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Tech designer completed. MANDATORY: IMMEDIATELY write the design output to .agent-dev/tech-design.md. Then update state.json phase.\"}}'",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Tech designer completed. MANDATORY: IMMEDIATELY write the design output to .pilot/tech-design.md. Then update state.json phase.\"}}'",
             "timeout": 5
           }
         ]
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Review agent completed. MANDATORY: 1) Parse CONFIDENCE and VERDICT from the result. 2) IMMEDIATELY write output to .agent-dev/review.json or .agent-dev/code-review.json. 3) Update state.json. If CONFIDENCE < 60, escalate to user.\"}}'",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SubagentStop\",\"additionalContext\":\"Review agent completed. MANDATORY: 1) Parse CONFIDENCE and VERDICT from the result. 2) IMMEDIATELY write output to .pilot/review.json or .pilot/code-review.json. 3) Update state.json. If CONFIDENCE < 60, escalate to user.\"}}'",
             "timeout": 5
           }
         ]

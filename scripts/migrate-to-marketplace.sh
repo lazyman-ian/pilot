@@ -1,10 +1,10 @@
 #!/bin/bash
-# Migrate agent-dev plugin into housesigma/claude-plugins marketplace monorepo.
+# Migrate pilot plugin into housesigma/claude-plugins marketplace monorepo.
 #
 # What it does:
 #   1. Clones claude-plugins (or uses existing clone)
-#   2. Copies plugin files into claude-plugins/agent-dev/
-#   3. Adds agent-dev entry to marketplace.json
+#   2. Copies plugin files into claude-plugins/pilot/
+#   3. Adds pilot entry to marketplace.json
 #   4. Commits and creates a PR
 #
 # Usage:
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 AGENT_DEV_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN_NAME="agent-dev"
+PLUGIN_NAME="pilot"
 PLUGIN_VERSION=$(jq -r '.version' "$AGENT_DEV_ROOT/.claude-plugin/plugin.json")
 BRANCH="feat/add-${PLUGIN_NAME}-v${PLUGIN_VERSION}"
 
@@ -61,7 +61,7 @@ echo "Excluded dev-only files: TEST-RESULTS*, articles/, docs/, .claude/"
 # --- Update marketplace.json ---
 MARKETPLACE_JSON="$MARKETPLACE_ROOT/.claude-plugin/marketplace.json"
 if [ -f "$MARKETPLACE_JSON" ]; then
-  # Check if agent-dev already in marketplace
+  # Check if pilot already in marketplace
   EXISTING=$(jq -r ".plugins[] | select(.name == \"$PLUGIN_NAME\") | .name" "$MARKETPLACE_JSON" 2>/dev/null)
   if [ -n "$EXISTING" ]; then
     echo "Updating existing '$PLUGIN_NAME' entry in marketplace.json (version → $PLUGIN_VERSION)..."
@@ -108,7 +108,7 @@ if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
   git commit -m "feat: add $PLUGIN_NAME plugin v$PLUGIN_VERSION
 
 Autonomous development pipeline: Notion requirement → draft PR.
-Migrated from housesigma/agent-dev standalone repo."
+Migrated from housesigma/pilot standalone repo."
 
   echo ""
   echo "Push and create PR? [y/N]"
@@ -119,7 +119,7 @@ Migrated from housesigma/agent-dev standalone repo."
 ## Summary
 - Add \`$PLUGIN_NAME\` plugin to marketplace (v$PLUGIN_VERSION)
 - Autonomous development pipeline: Notion requirement → draft PR
-- Migrated from \`housesigma/agent-dev\` standalone repo
+- Migrated from \`housesigma/pilot\` standalone repo
 
 ## Plugin capabilities
 - 9-phase pipeline: FETCH → RESOLVE → DESIGN → REVIEW → PLAN → IMPLEMENT → CODE_REVIEW → PR
@@ -130,7 +130,7 @@ Migrated from housesigma/agent-dev standalone repo."
 
 ## Installation
 \`\`\`
-claude plugin install github:housesigma/claude-plugins --name agent-dev
+claude plugin install github:housesigma/claude-plugins --name pilot
 \`\`\`
 EOF
 )"
@@ -151,6 +151,6 @@ echo "Version:     $PLUGIN_VERSION"
 echo "Marketplace: $MARKETPLACE_JSON"
 echo ""
 echo "Next steps after merge:"
-echo "  1. Archive housesigma/agent-dev repo (Settings → Archive)"
+echo "  1. Archive housesigma/pilot repo (Settings → Archive)"
 echo "  2. Update CLAUDE.md repository URL"
-echo "  3. Future development happens in claude-plugins/agent-dev/"
+echo "  3. Future development happens in claude-plugins/pilot/"

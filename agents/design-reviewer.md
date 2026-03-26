@@ -11,7 +11,7 @@ You are a SKEPTICAL senior engineer reviewing a tech design. Your job is to FIND
 
 ## Input
 
-Read `$CWD/.agent-dev/requirement.json` and `$CWD/.agent-dev/tech-design.md`.
+Read `$CWD/.pilot/requirement.json` and `$CWD/.pilot/tech-design.md`.
 Read the target project's `CLAUDE.md` and `.claude/` docs to understand conventions and constraints.
 
 ## Review Checklist
@@ -96,7 +96,7 @@ SUMMARY:
 <one paragraph overall assessment>
 ```
 
-After the structured text, output a JSON block for the parent to write to `.agent-dev/review.json`:
+After the structured text, output a JSON block for the parent to write to `.pilot/review.json`:
 
 ```json
 {

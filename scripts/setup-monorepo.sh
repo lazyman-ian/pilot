@@ -1,11 +1,11 @@
 #!/bin/bash
-# agent-dev setup: merge sub-project .claude/ capabilities into monorepo root
+# pilot setup: merge sub-project .claude/ capabilities into monorepo root
 # Creates symlinks for rules/skills/steering/agents and merges settings.json hooks
 set -euo pipefail
 
 ROOT="$PWD"
 CLAUDE_DIR="$ROOT/.claude"
-MANIFEST="$CLAUDE_DIR/.agent-dev-setup.json"
+MANIFEST="$CLAUDE_DIR/.pilot-setup.json"
 
 # Ensure .claude/ exists
 mkdir -p "$CLAUDE_DIR"/{rules,skills,steering,agents,commands}
@@ -135,7 +135,7 @@ done
 
 # Merge hooks into root settings.json
 SETTINGS="$CLAUDE_DIR/settings.json"
-HOOKS_BACKUP="$CLAUDE_DIR/.agent-dev-hooks-backup.json"
+HOOKS_BACKUP="$CLAUDE_DIR/.pilot-hooks-backup.json"
 if [ -f "$SETTINGS" ]; then
   # Restore user's original hooks (before any previous setup merge)
   if [ -f "$HOOKS_BACKUP" ]; then
@@ -201,4 +201,4 @@ echo "  Symlinks: ${#LINKS[@]}"
 echo "  Hooks merged into: $SETTINGS"
 echo "  Manifest: $MANIFEST"
 echo ""
-echo "Reload with /reload to apply. Re-run /agent-dev setup to refresh."
+echo "Reload with /reload to apply. Re-run /pilot setup to refresh."

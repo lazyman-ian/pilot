@@ -12,25 +12,25 @@ When compacting, preserve in priority order:
 
 Safe to discard:
 - Notion/Figma MCP tool call results from FETCH phase
-- Raw subagent output text (already persisted to .agent-dev/ files on disk)
+- Raw subagent output text (already persisted to .pilot/ files on disk)
 - File contents read during PLAN/RESOLVE (re-readable from disk)
 - Completed phase artifacts content (on disk: tech-design.md, review.json, etc.)
 
-ALL `.agent-dev/` artifacts live in CWD. This is typically the target project directory.
-Recommended: run `/agent-dev` from inside the target project (e.g., `cd web-hybrid && claude`).
+ALL `.pilot/` artifacts live in CWD. This is typically the target project directory.
+Recommended: run `/pilot` from inside the target project (e.g., `cd web-hybrid && claude`).
 This way, the project's .claude/ hooks, rules, skills, and steering docs are automatically loaded.
 
 If CWD is a monorepo root with multiple sub-projects:
 - RESOLVE will detect the target sub-project directory
 - projectDir = `<CWD>/<sub-project>` — code operations use absolute paths
-- `.agent-dev/` stays in CWD (monorepo root)
+- `.pilot/` stays in CWD (monorepo root)
 
 ## Telemetry
 
-Every pipeline run (COMPLETED or FAILED) writes a row to `~/.agent-dev-telemetry.tsv`.
+Every pipeline run (COMPLETED or FAILED) writes a row to `~/.pilot-telemetry.tsv`.
 - **Score formula** (0-100): completion(40) + low-interventions(30) + design-first-pass(15) + code-review-first-pass(15)
 - **metrics.interventions**: increment whenever the pipeline stops to ask the user (ESCALATED, unrecoverable error)
-- Written by: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "<version>"`
+- Written by: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "<version>"`
 - On FAILED: set `metrics.completedAt`, then run the telemetry script before reporting the error
 
 ---
@@ -40,7 +40,7 @@ Every pipeline run (COMPLETED or FAILED) writes a row to `~/.agent-dev-telemetry
 YOU fetch requirements using Notion/Figma MCP tools directly.
 Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagents.
 
-1. Create `.agent-dev/` directory in CWD
+1. Create `.pilot/` directory in CWD
 2. Use Notion MCP tools to fetch the page at the given URL
 3. **FOLLOW RELATION LINKS** — HouseSigma uses Opportunity Trees:
    ```
@@ -55,7 +55,7 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
    - If Solution has a "Project" property — optionally fetch for task breakdown
 4. If Figma links found (in Design page or elsewhere):
    - Use Figma MCP tools to extract component hierarchy, tokens, layout
-5. Write `.agent-dev/requirement.json` combining data from ALL fetched pages:
+5. Write `.pilot/requirement.json` combining data from ALL fetched pages:
    ```json
    {
      "title": "string",
@@ -68,7 +68,7 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
      "metadata": { "priority": "string", "status": "string" }
    }
    ```
-6. Write `.agent-dev/state.json`: `{ "pipelineId": "pipeline-<timestamp>", "sessionId": null, "phase": "FETCH", "notionUrl": "<url>", "metrics": {"interventions": 0, "completedAt": null}, "createdAt": "<ISO>", "updatedAt": "<ISO>" }`
+6. Write `.pilot/state.json`: `{ "pipelineId": "pipeline-<timestamp>", "sessionId": null, "phase": "FETCH", "notionUrl": "<url>", "metrics": {"interventions": 0, "completedAt": null}, "createdAt": "<ISO>", "updatedAt": "<ISO>" }`
    IMPORTANT: sessionId is auto-injected by the PostToolUse hook on every state.json write. Always write `null` — never hardcode a value.
 7. Log a one-line summary then IMMEDIATELY continue — do NOT stop, do NOT ask the user anything:
    "需求: **<title>** | 平台: <affectedProjects> | AC: <count> 条 | Figma: <有/无>"
@@ -79,7 +79,7 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
 ## Phase 1.5: RESOLVE (Project Resolution)
 
 Determine which project(s) to work in and build the project queue.
-`.agent-dev/` stays in CWD — do NOT move it.
+`.pilot/` stays in CWD — do NOT move it.
 
 1. Read `affectedProjects` from requirement.json
 
@@ -125,25 +125,25 @@ Determine which project(s) to work in and build the project queue.
 
 ## Phase 2: DESIGN
 
-1. Read `.agent-dev/requirement.json`
-2. Invoke `@agent-dev:tech-designer` with prompt containing:
+1. Read `.pilot/requirement.json`
+2. Invoke `@pilot:tech-designer` with prompt containing:
    - Full requirement content
    - "Target project directory: <projectDir>"
    - If cross-project: "Related projects for API reference: <list>"
-   - If `.agent-dev/cross-project-summary.md` exists: include it ("Previous projects made these decisions. Maintain consistency.")
-   - If revision: include feedback from `.agent-dev/review.json`
-3. **IMMEDIATELY write** returned markdown to `.agent-dev/tech-design.md`
+   - If `.pilot/cross-project-summary.md` exists: include it ("Previous projects made these decisions. Maintain consistency.")
+   - If revision: include feedback from `.pilot/review.json`
+3. **IMMEDIATELY write** returned markdown to `.pilot/tech-design.md`
 4. Update state.json: phase → REVIEW
 
 ---
 
 ## Phase 3: REVIEW
 
-1. Invoke `@agent-dev:design-reviewer` with prompt containing:
+1. Invoke `@pilot:design-reviewer` with prompt containing:
    - "Target project directory: <projectDir>"
    - If cross-project: "Related projects for API reference: <list>"
 2. Parse CONFIDENCE and VERDICT from returned text
-3. **IMMEDIATELY write** to `.agent-dev/review.json`:
+3. **IMMEDIATELY write** to `.pilot/review.json`:
    ```json
    {
      "confidence": 82,
@@ -182,7 +182,7 @@ Determine which project(s) to work in and build the project queue.
 
 ## Phase 4: PLAN
 
-YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`.
+YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
 
 1. Read `<projectDir>/CLAUDE.md` and `.claude/` docs for build, test, lint commands.
 2. **Discover project convention files** for subagent context injection:
@@ -206,8 +206,8 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
    - If found → record test command (e.g., `pnpm vitest run`) and example test file paths as patterns
 5. **Build step list** from available context:
-   - **Standard/Complex** (tech-design.md exists): read `.agent-dev/tech-design.md`, break into atomic steps
-   - **Simple** (no tech-design.md): read `.agent-dev/requirement.json` directly, derive 1-3 steps from the ACs + affected files. Grep codebase to identify exact files to modify. No architecture doc needed for simple changes.
+   - **Standard/Complex** (tech-design.md exists): read `.pilot/tech-design.md`, break into atomic steps
+   - **Simple** (no tech-design.md): read `.pilot/requirement.json` directly, derive 1-3 steps from the ACs + affected files. Grep codebase to identify exact files to modify. No architecture doc needed for simple changes.
    Break into atomic steps:
    - VERIFY_ONLY steps: use the build/lint command from step 3 as `verification`
    - TESTABLE steps: use the **test command** from step 4 targeting the step's test file as `verification`
@@ -238,7 +238,7 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
    `git -C <projectDir> symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#refs/remotes/origin/##'`
    This resolves the symbolic ref to the actual branch name (e.g., "main", not "HEAD").
    Fallback: check if `origin/main` exists (`git -C <projectDir> rev-parse --verify origin/main`), else use `master`.
-7. Write `.agent-dev/plan.json`:
+7. Write `.pilot/plan.json`:
    ```json
    {
      "totalSteps": N,
@@ -300,10 +300,10 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.agent-dev/`
 
 ## Phase 5: IMPLEMENT
 
-Delegate to `@agent-dev:implementer` — a subagent with fresh context that implements
+Delegate to `@pilot:implementer` — a subagent with fresh context that implements
 all steps using JIT file reading (reads real code before each step, not predictions).
 
-1. Read `.agent-dev/plan.json` and `.agent-dev/tech-design.md` (if exists — simple tasks skip DESIGN)
+1. Read `.pilot/plan.json` and `.pilot/tech-design.md` (if exists — simple tasks skip DESIGN)
 2. Read `<projectDir>/CLAUDE.md` (the implementer subagent cannot auto-load it)
 3. Build the implementer prompt:
    - `projectDir`: absolute path
@@ -316,8 +316,8 @@ all steps using JIT file reading (reads real code before each step, not predicti
    - **`conventionFiles`**: list of `.claude/rules/*.md`, `.claude/steering/*.md`, and `.claude/docs/*.md` paths discovered in PLAN step 2
    - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3b (so implementer can ignore them during anchor checks)
    - **`baselineBuildFailure`**: boolean from PLAN step 3a — if true, implementer treats pre-existing build failures as baseline (not regression)
-   - If `.agent-dev/cross-project-summary.md` exists, include it as `crossProjectContext`
-4. Invoke `@agent-dev:implementer` with the built prompt
+   - If `.pilot/cross-project-summary.md` exists, include it as `crossProjectContext`
+4. Invoke `@pilot:implementer` with the built prompt
 5. Parse the returned summary:
    - `STEP_STATUSES` → update plan.json: set each step's `status` field to `"pass"` or `"fail"` as reported
    - `COMPLETED_STEPS` → update state.json: completedSteps
@@ -330,7 +330,7 @@ all steps using JIT file reading (reads real code before each step, not predicti
 **If implementer reports failures:**
 - Steps that failed verification but were committed → let code-reviewer catch them
 - Steps that were skipped → if not blocking any downstream step, proceed to CODE_REVIEW.
-  If blocking: re-invoke `@agent-dev:implementer` with the same context as step 3,
+  If blocking: re-invoke `@pilot:implementer` with the same context as step 3,
   but set `steps` to ONLY the skipped/failed steps (implementer reconstructs anchor set
   from git history via Recovery flow). If re-invocation also fails → increment
   metrics.interventions, proceed to CODE_REVIEW and let code-reviewer flag the gaps.
@@ -343,8 +343,8 @@ Run sequentially: code review first, then visual check.
 
 ### 6a: Code Review (always runs)
 1. Read `<projectDir>/CLAUDE.md` (code-reviewer subagent cannot auto-load it)
-2. Invoke `@agent-dev:code-reviewer` with prompt containing:
-   - "Project directory: <projectDir>. Pipeline artifacts at: <CWD>/.agent-dev/"
+2. Invoke `@pilot:code-reviewer` with prompt containing:
+   - "Project directory: <projectDir>. Pipeline artifacts at: <CWD>/.pilot/"
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline)
    - **`conventionFiles`**: `.claude/rules/*.md` and `.claude/steering/*.md` paths from PLAN
    - **`testInfra`**: from plan.json (the validated test command — code-reviewer should use this instead of raw CLAUDE.md commands)
@@ -360,7 +360,7 @@ Run sequentially: code review first, then visual check.
      If Figma design exists, also pre-fetch screenshot via Figma MCP and pass as `figmaScreenshot`.
      Pass `devServerCommand`, `devUrl`, and `affectedRoutes` (inferred from diff + router).
 3. Parse results
-4. **IMMEDIATELY write** to `.agent-dev/code-review.json`:
+4. **IMMEDIATELY write** to `.pilot/code-review.json`:
    ```json
    {
      "testResult": "PASS|FAIL",
@@ -389,10 +389,10 @@ Run sequentially: code review first, then visual check.
    - **APPROVE + testResult=PASS (or SKIPPED if no test infra) + lintResult=PASS**: proceed to VISUAL_CHECK gate (step 6)
 
    **Implementer fix mode invocation** (ALWAYS — no parent code edits):
-   Re-invoke `@agent-dev:implementer` with the same context as Phase 5 PLUS fix-specific fields:
+   Re-invoke `@pilot:implementer` with the same context as Phase 5 PLUS fix-specific fields:
    - All fields from the original Phase 5 prompt: `projectDir`, `branch`, `baseBranch`, `steps` (from plan.json), `testInfra`, `claudeMd`, `conventionFiles`, `baselineFailures`, `baselineBuildFailure`
    - `fixMode: true`
-   - `codeReviewIssues`: the `issues` array from `.agent-dev/code-review.json`
+   - `codeReviewIssues`: the `issues` array from `.pilot/code-review.json`
    - `testResult`, `lintResult`: from code-review.json (so implementer knows what's broken)
    - If tech-design.md exists: include relevant `designSection` content per issue
    The implementer reconstructs anchor set from git history (same as its Recovery flow),
@@ -411,7 +411,7 @@ Run sequentially: code review first, then visual check.
 
 **Fallback mode**: If `code-review.json` contains `qaResult` that is NOT `"SKIPPED"` and NOT absent,
 the code-reviewer already performed interactive QA. In this case:
-1. Write `.agent-dev/visual-review.json`:
+1. Write `.pilot/visual-review.json`:
    ```json
    { "verdict": "DELEGATED_TO_CODE_REVIEWER", "qaResult": "<value from code-review.json>" }
    ```
@@ -448,7 +448,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
    - Compare against Figma design tokens from requirement.json
    - Check responsive behavior matches design breakpoint
 
-5. **Write** to `.agent-dev/visual-review.json`:
+5. **Write** to `.pilot/visual-review.json`:
    ```json
    {
      "matches": ["layout correct", "colors match tokens"],
@@ -499,7 +499,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
    ## Acceptance Criteria
    <from code-review.json requirementsCoverage>
    ---
-   > Generated by agent-dev. Human review required before merge.
+   > Generated by pilot. Human review required before merge.
    ```
 4. Update state.json: prUrl → <url>
 5. **Check project queue**:
@@ -507,9 +507,9 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
      → phase → PROJECT_TRANSITION, proceed to Phase 8
    - **Last project**:
      → Set metrics.completedAt → <ISO> (but keep phase as PR until telemetry is written)
-     → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
+     → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
      → NOW set phase → COMPLETED (only after telemetry is durable)
-     → Report all PRs + scores. Ask: "清理 .agent-dev/ 文件？"
+     → Report all PRs + scores. Ask: "清理 .pilot/ 文件？"
 
 ---
 
@@ -518,22 +518,22 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
 Transition from one completed project to the next in the queue.
 
 1. **Set completion time** (if not already set — idempotent for resume): update state.json `metrics.completedAt` → current ISO timestamp
-2. `mkdir -p .agent-dev/completed` (ensure directory exists before marker/archive)
+2. `mkdir -p .pilot/completed` (ensure directory exists before marker/archive)
 3. **Write telemetry** (idempotent — check marker first):
-   - If `.agent-dev/completed/<targetProject>.telemetry` marker does NOT exist (use targetProject from state.json):
-     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.agent-dev/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
+   - If `.pilot/completed/<targetProject>.telemetry` marker does NOT exist (use targetProject from state.json):
+     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
      → Create the marker file
    - Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
 4. **Archive current project's artifacts**:
    ```bash
-   mkdir -p .agent-dev/completed
+   mkdir -p .pilot/completed
    for f in tech-design.md review.json plan.json code-review.json visual-review.json; do
-     [ -f ".agent-dev/$f" ] && mv ".agent-dev/$f" ".agent-dev/completed/<targetProject>.$f"
+     [ -f ".pilot/$f" ] && mv ".pilot/$f" ".pilot/completed/<targetProject>.$f"
    done
    ```
 
-5. **Write/append cross-project summary** to `.agent-dev/cross-project-summary.md`:
+5. **Write/append cross-project summary** to `.pilot/cross-project-summary.md`:
    ```markdown
    ## <targetProject> (completed)
    - **PR**: <prUrl>

@@ -1,7 +1,7 @@
-You are reviewing the **agent-dev** Claude Code plugin — an autonomous development pipeline (Notion requirement → draft PR) using 4 Opus subagents.
+You are reviewing the **pilot** Claude Code plugin — an autonomous development pipeline (Notion requirement → draft PR) using 4 Opus subagents.
 
 ## Task
-Read CLAUDE.md and skills/agent-dev/references/phases.md first for full architecture context, then review all source files thoroughly.
+Read CLAUDE.md and skills/pilot/references/phases.md first for full architecture context, then review all source files thoroughly.
 
 ## What to look for
 1. **Correctness**: Logic errors, broken control flow, wrong variable references, state machine violations

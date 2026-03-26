@@ -11,9 +11,9 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 # No file path → pass through
 [ -z "$FILE" ] && exit 0
 
-# Route based on file name within .agent-dev/
+# Route based on file name within .pilot/
 case "$FILE" in
-  */.agent-dev/state.json)
+  */.pilot/state.json)
     # Inline the existing patch-state-session logic
     [ ! -f "$FILE" ] && exit 0
     command -v jq &>/dev/null || exit 0
@@ -26,13 +26,13 @@ case "$FILE" in
     fi
     exit 0
     ;;
-  */.agent-dev/plan.json)
+  */.pilot/plan.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-plan.sh"
     ;;
-  */.agent-dev/code-review.json)
+  */.pilot/code-review.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-code-review.sh"
     ;;
-  */.agent-dev/review.json)
+  */.pilot/review.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-review.sh"
     ;;
   *)

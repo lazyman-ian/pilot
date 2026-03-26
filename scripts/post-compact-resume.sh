@@ -1,9 +1,9 @@
 #!/bin/bash
-# Post-compaction context restoration for agent-dev pipeline
+# Post-compaction context restoration for pilot pipeline
 # Reads state.json and produces a resume context for the parent agent
 
-# .agent-dev/ always lives in CWD (monorepo root)
-STATE="$PWD/.agent-dev/state.json"
+# .pilot/ always lives in CWD (monorepo root)
+STATE="$PWD/.pilot/state.json"
 [ ! -f "$STATE" ] && STATE=""
 
 # No pipeline active — nothing to inject
@@ -29,7 +29,7 @@ case "$PHASE" in
 esac
 
 # Build resume message
-MSG="agent-dev pipeline is ACTIVE. DO NOT ask the user what to do — resume automatically."
+MSG="pilot pipeline is ACTIVE. DO NOT ask the user what to do — resume automatically."
 MSG="$MSG\n\nCurrent state:"
 MSG="$MSG\n- Phase: $PHASE"
 [ -n "$TARGET" ] && MSG="$MSG\n- Project: $TARGET ($PROJECT_DIR)"
@@ -41,27 +41,27 @@ MSG="$MSG\n- Phase: $PHASE"
 MSG="$MSG\n\nTo resume:"
 MSG="$MSG\n1. Read $STATE for full pipeline state"
 case "$PHASE" in
-  FETCH)    MSG="$MSG\n2. Check if .agent-dev/requirement.json exists, continue FETCH" ;;
+  FETCH)    MSG="$MSG\n2. Check if .pilot/requirement.json exists, continue FETCH" ;;
   RESOLVE)  MSG="$MSG\n2. Continue project resolution" ;;
-  DESIGN)   MSG="$MSG\n2. Read .agent-dev/requirement.json, invoke @agent-dev:tech-designer" ;;
-  REVIEW)   MSG="$MSG\n2. Read .agent-dev/tech-design.md, invoke @agent-dev:design-reviewer" ;;
+  DESIGN)   MSG="$MSG\n2. Read .pilot/requirement.json, invoke @pilot:tech-designer" ;;
+  REVIEW)   MSG="$MSG\n2. Read .pilot/tech-design.md, invoke @pilot:design-reviewer" ;;
   ESCALATED)
     # Determine escalation source: code-review.json exists → code review escalation; otherwise design review
-    if [ -f "$PWD/.agent-dev/code-review.json" ]; then
-      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/code-review.json for issues. Ask user how to proceed."
+    if [ -f "$PWD/.pilot/code-review.json" ]; then
+      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .pilot/code-review.json for issues. Ask user how to proceed."
     else
-      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .agent-dev/review.json for issues. Ask user how to proceed."
+      MSG="$MSG\n2. Pipeline is WAITING FOR HUMAN. Read .pilot/review.json for issues. Ask user how to proceed."
     fi
     ;;
-  PLAN)     MSG="$MSG\n2. Read .agent-dev/tech-design.md (if exists — simple tasks skip design) + requirement.json, generate plan" ;;
-  IMPLEMENT)MSG="$MSG\n2. Read .agent-dev/plan.json, invoke @agent-dev:implementer" ;;
-  CODE_REVIEW) MSG="$MSG\n2. Invoke @agent-dev:code-reviewer" ;;
+  PLAN)     MSG="$MSG\n2. Read .pilot/tech-design.md (if exists — simple tasks skip design) + requirement.json, generate plan" ;;
+  IMPLEMENT)MSG="$MSG\n2. Read .pilot/plan.json, invoke @pilot:implementer" ;;
+  CODE_REVIEW) MSG="$MSG\n2. Invoke @pilot:code-reviewer" ;;
   VISUAL_CHECK) MSG="$MSG\n2. Run visual check: Figma screenshot vs browser screenshot comparison" ;;
   PR)       MSG="$MSG\n2. Push branch and create draft PR" ;;
   PROJECT_TRANSITION) MSG="$MSG\n2. Archive artifacts, advance to next project in queue" ;;
 esac
 
-MSG="$MSG\n3. Read phases.md in the agent-dev skill references for detailed instructions"
+MSG="$MSG\n3. Read phases.md in the pilot skill references for detailed instructions"
 
 # Output as hook JSON
 ESCAPED=$(echo -e "$MSG" | jq -Rs .)

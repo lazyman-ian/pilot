@@ -1,4 +1,4 @@
-# agent-dev
+# pilot
 
 Autonomous development pipeline for Claude Code: Notion requirement → draft PR.
 
@@ -19,10 +19,10 @@ Fully autonomous — human only intervenes on review ESCALATION or at the end (P
 
 ```bash
 # From GitHub
-claude plugin install github:housesigma/agent-dev
+claude plugin install github:housesigma/pilot
 
 # Local development
-claude --plugin-dir /path/to/agent-dev
+claude --plugin-dir /path/to/pilot
 ```
 
 ## Prerequisites
@@ -37,28 +37,28 @@ claude --plugin-dir /path/to/agent-dev
 
 ```bash
 # Start pipeline with Notion URL
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 
 # Resume interrupted pipeline
-/agent-dev resume
+/pilot resume
 
 # Check pipeline status
-/agent-dev status
+/pilot status
 
 # Clean up pipeline artifacts
-/agent-dev clean
+/pilot clean
 ```
 
 ## Pipeline Sequence Diagram
 
 ```
 ═══════════════════════════════════════════════════════════════════════
-                    agent-dev v1.6.0 Pipeline
+                    pilot v1.6.0 Pipeline
 ═══════════════════════════════════════════════════════════════════════
 
  User                Parent               Subagents            External
   │                    │                      │                    │
-  │  /agent-dev <url>  │                      │                    │
+  │  /pilot <url>  │                      │                    │
   ├───────────────────>│                      │                    │
   │                    │                      │                    │
   │        ┌───────────┴───────────┐          │                    │
@@ -295,12 +295,12 @@ Legend:
 # Recommended: run from the target project directory
 cd ~/housesigma/web-hybrid
 claude
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 
 # Or from monorepo root (multi-project)
 cd ~/housesigma
 claude
-/agent-dev https://notion.so/your-requirement-page
+/pilot https://notion.so/your-requirement-page
 ```
 
 ### What Happens Next
@@ -313,7 +313,7 @@ The pipeline runs fully autonomously. You'll see phase transitions logged:
 ✅ web-hybrid PR: https://github.com/.../pull/321 (score: 90)
 ✅ ios PR: https://github.com/.../pull/28 (score: 100)
 ✅ android PR: https://github.com/.../pull/26 (score: 100)
-Pipeline 完成. 清理 .agent-dev/ 文件？
+Pipeline 完成. 清理 .pilot/ 文件？
 ```
 
 ### When It Stops
@@ -328,20 +328,20 @@ The pipeline only stops to ask you in three cases:
 From another terminal:
 ```bash
 # Check current state
-cat ~/housesigma/.agent-dev/state.json | jq '{phase, targetProject, completedSteps}'
+cat ~/housesigma/.pilot/state.json | jq '{phase, targetProject, completedSteps}'
 
 # Watch for stalls (macOS notification after 10 min of no state changes)
-cd ~/housesigma && bash /path/to/agent-dev/scripts/health-check.sh 10
+cd ~/housesigma && bash /path/to/pilot/scripts/health-check.sh 10
 
 # View telemetry
-column -t -s $'\t' ~/.agent-dev-telemetry.tsv
+column -t -s $'\t' ~/.pilot-telemetry.tsv
 ```
 
 ### Resuming After Interruption
 
 ```bash
 # Automatically detects state.json and continues
-/agent-dev resume
+/pilot resume
 
 # Or just start Claude in the same directory — post-compact-resume.sh auto-recovers
 ```
@@ -349,7 +349,7 @@ column -t -s $'\t' ~/.agent-dev-telemetry.tsv
 ### Pipeline Artifacts
 
 ```
-.agent-dev/
+.pilot/
 ├── state.json                 ← pipeline state machine
 ├── requirement.json           ← fetched requirements (shared)
 ├── tech-design.md             ← architecture design (current project)
@@ -391,7 +391,7 @@ Each project customizes pipeline behavior via its own `.claude/` directory:
 
 ### Telemetry
 
-Pipeline runs are scored and logged to `~/.agent-dev-telemetry.tsv`:
+Pipeline runs are scored and logged to `~/.pilot-telemetry.tsv`:
 
 | Component | Points | Scoring |
 |-----------|--------|---------|
@@ -402,10 +402,10 @@ Pipeline runs are scored and logged to `~/.agent-dev-telemetry.tsv`:
 
 ```bash
 # View telemetry
-column -t -s $'\t' ~/.agent-dev-telemetry.tsv
+column -t -s $'\t' ~/.pilot-telemetry.tsv
 
 # Filter by project
-grep 'web-hybrid' ~/.agent-dev-telemetry.tsv | column -t -s $'\t'
+grep 'web-hybrid' ~/.pilot-telemetry.tsv | column -t -s $'\t'
 ```
 
 ## Design Principles

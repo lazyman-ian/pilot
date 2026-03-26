@@ -1,13 +1,13 @@
 #!/bin/bash
 # Write pipeline telemetry to global TSV after pipeline completion
 # Usage: write-telemetry.sh <state.json-path> [plugin-version]
-# Appends one row per pipeline run to ~/.agent-dev-telemetry.tsv
+# Appends one row per pipeline run to ~/.pilot-telemetry.tsv
 
 set -euo pipefail
 
 STATE="${1:?Usage: write-telemetry.sh <state.json-path> [version]}"
 VERSION="${2:-unknown}"
-TSV="$HOME/.agent-dev-telemetry.tsv"
+TSV="$HOME/.pilot-telemetry.tsv"
 
 command -v jq &>/dev/null || { echo "jq required" >&2; exit 1; }
 [ -f "$STATE" ] || { echo "state.json not found: $STATE" >&2; exit 1; }

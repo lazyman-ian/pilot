@@ -4,7 +4,7 @@ description: >
   Comprehensive code review of all implementation changes. Uses Opus.
   Trigger: after implementation complete, reviewing code before PR, final review.
 model: opus
-tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_agent-dev_chrome-devtools__*
+tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*
 ---
 
 You are a critical code reviewer.
@@ -12,7 +12,7 @@ You are a critical code reviewer.
 ## Process
 
 Your prompt contains the target project directory, CWD (monorepo root), and project documentation.
-Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-dev/.
+Run git/test commands from projectDir. Read pipeline artifacts from CWD/.pilot/.
 
 1. **Review injected project docs**: your prompt includes `claudeMd` (CLAUDE.md content inline),
    `conventionFiles` (paths to `.claude/rules/*.md` and `.claude/steering/*.md`), and
@@ -26,9 +26,9 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.agent-d
    Do NOT guess commands — the project documents them.
 2. Run from project dir (use `baseBranch` from plan.json, not hardcoded main/master):
    `cd <projectDir> && git diff $(git merge-base HEAD origin/<baseBranch>)...HEAD`
-3. Read `<CWD>/.agent-dev/requirement.json` for acceptance criteria
-4. Read `<CWD>/.agent-dev/tech-design.md` for intended approach (if it exists — simple tasks skip DESIGN; fall back to `requirement.json` + `plan.json`)
-5. Read `<CWD>/.agent-dev/plan.json` — verify each planned step was implemented:
+3. Read `<CWD>/.pilot/requirement.json` for acceptance criteria
+4. Read `<CWD>/.pilot/tech-design.md` for intended approach (if it exists — simple tasks skip DESIGN; fall back to `requirement.json` + `plan.json`)
+5. Read `<CWD>/.pilot/plan.json` — verify each planned step was implemented:
    - Check that every step's files exist and were modified in the diff
    - If the plan includes a test step, verify test files were created or modified (extending an existing test file is valid)
    - Flag any planned step that appears missing from the implementation
@@ -161,7 +161,7 @@ SUMMARY: <one paragraph>
 
 ### Part 2: JSON Output
 
-After the structured text, output a JSON block that the parent will write to `.agent-dev/code-review.json`:
+After the structured text, output a JSON block that the parent will write to `.pilot/code-review.json`:
 
 ```json
 {

@@ -34,9 +34,9 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 # No file path → pass through
 [ -z "$FILE" ] && exit 0
 
-# Route based on file name within .agent-dev/
+# Route based on file name within .pilot/
 case "$FILE" in
-  */.agent-dev/state.json)
+  */.pilot/state.json)
     # Inline the existing patch-state-session logic
     [ ! -f "$FILE" ] && exit 0
     command -v jq &>/dev/null || exit 0
@@ -49,13 +49,13 @@ case "$FILE" in
     fi
     exit 0
     ;;
-  */.agent-dev/plan.json)
+  */.pilot/plan.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-plan.sh"
     ;;
-  */.agent-dev/code-review.json)
+  */.pilot/code-review.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-code-review.sh"
     ;;
-  */.agent-dev/review.json)
+  */.pilot/review.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-review.sh"
     ;;
   *)
@@ -72,7 +72,7 @@ Run: `chmod +x scripts/validate-artifacts.sh`
 
 - [ ] **Step 3: Verify the script parses stdin correctly**
 
-Run: `echo '{"tool_input":{"file_path":"/tmp/test/.agent-dev/state.json"},"session_id":"test-123"}' | bash scripts/validate-artifacts.sh; echo "exit: $?"`
+Run: `echo '{"tool_input":{"file_path":"/tmp/test/.pilot/state.json"},"session_id":"test-123"}' | bash scripts/validate-artifacts.sh; echo "exit: $?"`
 
 Expected: `exit: 0` (state.json path → inline session patch, file doesn't exist → early exit 0)
 
@@ -147,10 +147,10 @@ Run: `chmod +x scripts/validate-plan.sh`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"acceptanceCriteria":["AC1","AC2","AC3"]}' > "$TMPDIR/.agent-dev/requirement.json"
-echo '{"steps":[{"index":1,"title":"test","acRefs":["AC-1"],"scaffolding":false}]}' > "$TMPDIR/.agent-dev/plan.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/plan.json\"}}" | bash scripts/validate-plan.sh; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"acceptanceCriteria":["AC1","AC2","AC3"]}' > "$TMPDIR/.pilot/requirement.json"
+echo '{"steps":[{"index":1,"title":"test","acRefs":["AC-1"],"scaffolding":false}]}' > "$TMPDIR/.pilot/plan.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/plan.json\"}}" | bash scripts/validate-plan.sh; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -161,10 +161,10 @@ Expected: `exit: 0`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"acceptanceCriteria":["AC1"]}' > "$TMPDIR/.agent-dev/requirement.json"
-echo '{"steps":[{"index":1,"title":"bad step","acRefs":[],"scaffolding":false}]}' > "$TMPDIR/.agent-dev/plan.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"acceptanceCriteria":["AC1"]}' > "$TMPDIR/.pilot/requirement.json"
+echo '{"steps":[{"index":1,"title":"bad step","acRefs":[],"scaffolding":false}]}' > "$TMPDIR/.pilot/plan.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -175,10 +175,10 @@ Expected: `BLOCKED: 1 step(s) have empty acRefs` and `exit: 2`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"acceptanceCriteria":["AC1"]}' > "$TMPDIR/.agent-dev/requirement.json"
-echo '{"steps":[{"index":1,"title":"infra","acRefs":[],"scaffolding":true}]}' > "$TMPDIR/.agent-dev/plan.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/plan.json\"}}" | bash scripts/validate-plan.sh; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"acceptanceCriteria":["AC1"]}' > "$TMPDIR/.pilot/requirement.json"
+echo '{"steps":[{"index":1,"title":"infra","acRefs":[],"scaffolding":true}]}' > "$TMPDIR/.pilot/plan.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/plan.json\"}}" | bash scripts/validate-plan.sh; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -189,10 +189,10 @@ Expected: `exit: 0`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"acceptanceCriteria":["AC1","AC2"]}' > "$TMPDIR/.agent-dev/requirement.json"
-echo '{"steps":[{"index":1,"title":"test","acRefs":["AC-5"],"scaffolding":false}]}' > "$TMPDIR/.agent-dev/plan.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"acceptanceCriteria":["AC1","AC2"]}' > "$TMPDIR/.pilot/requirement.json"
+echo '{"steps":[{"index":1,"title":"test","acRefs":["AC-5"],"scaffolding":false}]}' > "$TMPDIR/.pilot/plan.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -304,9 +304,9 @@ Run: `chmod +x scripts/validate-code-review.sh`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":80,"rubricScores":{"correctness":8,"completeness":8,"convention":8,"regression":8},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.agent-dev/code-review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/code-review.json\"}}" | bash scripts/validate-code-review.sh; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":80,"rubricScores":{"correctness":8,"completeness":8,"convention":8,"regression":8},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.pilot/code-review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/code-review.json\"}}" | bash scripts/validate-code-review.sh; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -317,9 +317,9 @@ Expected: `exit: 0`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"FIX_REQUIRED","confidence":88,"rubricScores":{"correctness":9,"completeness":5,"convention":8,"regression":9},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.agent-dev/code-review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"FIX_REQUIRED","confidence":88,"rubricScores":{"correctness":9,"completeness":5,"convention":8,"regression":9},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.pilot/code-review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -330,9 +330,9 @@ Expected: `BLOCKED: FIX_REQUIRED verdict with confidence 88 > 72` and `exit: 2`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":65,"rubricScores":{"correctness":8,"completeness":4,"convention":7,"regression":7},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.agent-dev/code-review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":65,"rubricScores":{"correctness":8,"completeness":4,"convention":7,"regression":7},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.pilot/code-review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -343,9 +343,9 @@ Expected: `BLOCKED: Rubric score 4 < 5 requires FIX_REQUIRED verdict` and `exit:
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":90,"rubricScores":{"correctness":7,"completeness":7,"convention":7,"regression":7},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.agent-dev/code-review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":90,"rubricScores":{"correctness":7,"completeness":7,"convention":7,"regression":7},"testResult":"PASS","lintResult":"PASS"}' > "$TMPDIR/.pilot/code-review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -415,9 +415,9 @@ Run: `chmod +x scripts/validate-review.sh`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":80,"groundingCheck":{"apiChangesInDesign":1,"groundedInAC":1,"ungrounded":0},"issues":[],"summary":"ok"}' > "$TMPDIR/.agent-dev/review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/review.json\"}}" | bash scripts/validate-review.sh; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":80,"groundingCheck":{"apiChangesInDesign":1,"groundedInAC":1,"ungrounded":0},"issues":[],"summary":"ok"}' > "$TMPDIR/.pilot/review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/review.json\"}}" | bash scripts/validate-review.sh; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -428,9 +428,9 @@ Expected: `exit: 0`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":82,"issues":[],"summary":"ok"}' > "$TMPDIR/.agent-dev/review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":82,"issues":[],"summary":"ok"}' > "$TMPDIR/.pilot/review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -441,9 +441,9 @@ Expected: `BLOCKED: review.json must include groundingCheck field` and `exit: 2`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"verdict":"APPROVE","confidence":82,"groundingCheck":{"apiChangesInDesign":1,"groundedInAC":0,"ungrounded":1},"issues":[],"summary":"ok"}' > "$TMPDIR/.agent-dev/review.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"verdict":"APPROVE","confidence":82,"groundingCheck":{"apiChangesInDesign":1,"groundedInAC":0,"ungrounded":1},"issues":[],"summary":"ok"}' > "$TMPDIR/.pilot/review.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
 rm -rf "$TMPDIR"
 ```
 
@@ -513,10 +513,10 @@ Expected: `valid`
 Run:
 ```bash
 TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.agent-dev"
-echo '{"pipelineId":"test","phase":"FETCH","sessionId":null}' > "$TMPDIR/.agent-dev/state.json"
-echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.agent-dev/state.json\"},\"session_id\":\"new-session-id\"}" | bash scripts/validate-artifacts.sh
-jq -r '.sessionId' "$TMPDIR/.agent-dev/state.json"
+mkdir -p "$TMPDIR/.pilot"
+echo '{"pipelineId":"test","phase":"FETCH","sessionId":null}' > "$TMPDIR/.pilot/state.json"
+echo "{\"tool_input\":{\"file_path\":\"$TMPDIR/.pilot/state.json\"},\"session_id\":\"new-session-id\"}" | bash scripts/validate-artifacts.sh
+jq -r '.sessionId' "$TMPDIR/.pilot/state.json"
 rm -rf "$TMPDIR"
 ```
 
@@ -543,7 +543,7 @@ Three changes: (1) add structured `rubricScores` to JSON output, (2) add few-sho
 In `agents/code-reviewer.md`, change line 7:
 
 Old: `tools: Read, Glob, Grep, Bash, LSP`
-New: `tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_agent-dev_chrome-devtools__*`
+New: `tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*`
 
 - [ ] **Step 2: Add Scoring Constraints section after Review Criteria**
 
@@ -675,7 +675,7 @@ SUMMARY: <one paragraph>
 
 ### Part 2: JSON Output
 
-After the structured text, output a JSON block that the parent will write to `.agent-dev/code-review.json`:
+After the structured text, output a JSON block that the parent will write to `.pilot/code-review.json`:
 
 ```json
 {
@@ -841,7 +841,7 @@ SUMMARY:
 <one paragraph overall assessment>
 ```
 
-After the structured text, output a JSON block for the parent to write to `.agent-dev/review.json`:
+After the structured text, output a JSON block for the parent to write to `.pilot/review.json`:
 
 ```json
 {
@@ -882,13 +882,13 @@ git commit -m "feat(design-reviewer): add groundingCheck enforcement, calibratio
 ### Task 8: Update `phases.md` — acRefs traceability, iteration changes, QA construction, code-review schema
 
 **Files:**
-- Modify: `skills/agent-dev/references/phases.md`
+- Modify: `skills/pilot/references/phases.md`
 
 Four edits: (1) Phase 4 add acRefs + traceability check, (2) Phase 3 add early-stopping/fast-fail, (3) Phase 6a add qaCapabilities + code-review.json schema + limit 2→3, (4) Phase 6b simplify to fallback.
 
 - [ ] **Step 1: Phase 4 — add requirement traceability step 5b and acRefs to plan.json schema**
 
-In `skills/agent-dev/references/phases.md`, insert after the existing step 5 bullet about `dependsOn` (after line 215), before step 6:
+In `skills/pilot/references/phases.md`, insert after the existing step 5 bullet about `dependsOn` (after line 215), before step 6:
 
 ```markdown
 5b. **Requirement traceability check** — for each step in the plan:
@@ -1041,7 +1041,7 @@ At the beginning of Phase 6b (after the phase title), insert:
 ```markdown
 **Fallback mode**: If `code-review.json` contains `qaResult` that is NOT `"SKIPPED"` and NOT absent,
 the code-reviewer already performed interactive QA. In this case:
-1. Write `.agent-dev/visual-review.json`:
+1. Write `.pilot/visual-review.json`:
    ```json
    { "verdict": "DELEGATED_TO_CODE_REVIEWER", "qaResult": "<value from code-review.json>" }
    ```
@@ -1053,7 +1053,7 @@ If `qaResult` is `"SKIPPED"` or absent, execute the full VISUAL_CHECK flow below
 - [ ] **Step 7: Commit**
 
 ```bash
-git add skills/agent-dev/references/phases.md
+git add skills/pilot/references/phases.md
 git commit -m "feat(phases): add acRefs traceability, review early-stop, QA construction, code-review limit 2→3"
 ```
 
@@ -1062,7 +1062,7 @@ git commit -m "feat(phases): add acRefs traceability, review early-stop, QA cons
 ### Task 9: Update `SKILL.md` — plan.json example with acRefs
 
 **Files:**
-- Modify: `skills/agent-dev/SKILL.md`
+- Modify: `skills/pilot/SKILL.md`
 
 Update the plan.json step example in the State Schema section to include `acRefs` and `scaffolding`.
 
@@ -1132,7 +1132,7 @@ On each model upgrade, run these experiments using the SAME requirement for comp
 - Variant: One invocation per step (fresh context each time)
 - Metric: Anchor regression count, total time, context window usage
 
-**How to Run**: Pick a completed pipeline run → re-run same `requirement.json` with variant → compare artifacts (`review.json`, `code-review.json`, `git diff`) → record in `.agent-dev/experiments/<model>-<date>.md`
+**How to Run**: Pick a completed pipeline run → re-run same `requirement.json` with variant → compare artifacts (`review.json`, `code-review.json`, `git diff`) → record in `.pilot/experiments/<model>-<date>.md`
 ```
 
 - [ ] **Step 2: Update quality gates documentation**
@@ -1213,7 +1213,7 @@ No new files. Run all validation scripts against the real Android pipeline artif
 
 Run:
 ```bash
-echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.agent-dev/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
+echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.pilot/plan.json\"}}" | bash scripts/validate-plan.sh 2>&1; echo "exit: $?"
 ```
 
 Expected: `exit: 2` — the Android plan.json steps have no `acRefs` field (old schema). This confirms the gate would have caught the missing traceability.
@@ -1222,7 +1222,7 @@ Expected: `exit: 2` — the Android plan.json steps have no `acRefs` field (old 
 
 Run:
 ```bash
-echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.agent-dev/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
+echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.pilot/code-review.json\"}}" | bash scripts/validate-code-review.sh 2>&1; echo "exit: $?"
 ```
 
 Expected: `exit: 2` — the Android code-review.json has confidence 88 + FIX_REQUIRED (no rubricScores field either). This confirms the gate would have caught the scoring bias.
@@ -1231,7 +1231,7 @@ Expected: `exit: 2` — the Android code-review.json has confidence 88 + FIX_REQ
 
 Run:
 ```bash
-echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.agent-dev/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
+echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.pilot/review.json\"}}" | bash scripts/validate-review.sh 2>&1; echo "exit: $?"
 ```
 
 Expected: `exit: 2` — the Android review.json has no `groundingCheck` field. This confirms the gate would have caught the missing grounding check.
@@ -1240,7 +1240,7 @@ Expected: `exit: 2` — the Android review.json has no `groundingCheck` field. T
 
 Run:
 ```bash
-echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.agent-dev/plan.json\"}}" | bash scripts/validate-artifacts.sh 2>&1; echo "exit: $?"
+echo "{\"tool_input\":{\"file_path\":\"/Users/lazyman/housesigma/housesigma-android-native/.pilot/plan.json\"}}" | bash scripts/validate-artifacts.sh 2>&1; echo "exit: $?"
 ```
 
 Expected: `exit: 2` — dispatcher routes to validate-plan.sh which blocks the old-format plan.json.

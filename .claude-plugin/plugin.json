@@ -1,12 +1,12 @@
 {
-  "name": "agent-dev",
+  "name": "pilot",
   "version": "1.6.0",
   "description": "Autonomous development pipeline: Notion requirement → draft PR. Orchestrates multi-phase workflow with independent design review, quality gates, and structured state management.",
   "author": {
     "name": "HouseSigma",
     "email": "yuan.guo@housesigma.com"
   },
-  "repository": "https://github.com/housesigma/agent-dev",
+  "repository": "https://github.com/housesigma/pilot",
   "license": "MIT",
-  "keywords": ["agent-dev", "pipeline", "notion", "figma", "autonomous-development"]
+  "keywords": ["pilot", "pipeline", "notion", "figma", "autonomous-development"]
 }

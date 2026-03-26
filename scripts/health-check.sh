@@ -1,11 +1,11 @@
 #!/bin/bash
-# agent-dev pipeline health check
+# pilot pipeline health check
 # Detects stalled pipelines and sends macOS notification
 # Usage: called by cron/loop monitoring, or standalone
 #   health-check.sh [stale_threshold_minutes]
 
 STALE_THRESHOLD_MIN="${1:-10}"
-STATE_FILE="$PWD/.agent-dev/state.json"
+STATE_FILE="$PWD/.pilot/state.json"
 
 # No pipeline active
 [[ ! -f "$STATE_FILE" ]] && exit 0
@@ -37,7 +37,7 @@ if [[ $STALE_MIN -ge $STALE_THRESHOLD_MIN ]]; then
 
   # macOS notification
   if command -v osascript &>/dev/null; then
-    osascript -e "display notification \"$MSG\" with title \"agent-dev\" sound name \"Ping\""
+    osascript -e "display notification \"$MSG\" with title \"pilot\" sound name \"Ping\""
   fi
 
   # Output for cron/hook consumption

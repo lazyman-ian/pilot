@@ -1,5 +1,5 @@
 #!/bin/bash
-# Check agent-dev plugin dependencies and setup freshness on session start
+# Check pilot plugin dependencies and setup freshness on session start
 
 WARNINGS=""
 
@@ -14,7 +14,7 @@ command -v jq &>/dev/null || WARNINGS="$WARNINGS jq(brew install jq)"
 command -v gh &>/dev/null || WARNINGS="$WARNINGS gh(brew install gh)"
 
 # Check if monorepo setup is stale
-MANIFEST="$PWD/.claude/.agent-dev-setup.json"
+MANIFEST="$PWD/.claude/.pilot-setup.json"
 if [ -f "$MANIFEST" ]; then
   # Get manifest creation time (epoch)
   if [ "$(uname)" = "Darwin" ]; then
@@ -36,15 +36,15 @@ if [ -f "$MANIFEST" ]; then
   done
 
   if [ "$NEWEST" -gt "$MANIFEST_EPOCH" ]; then
-    WARNINGS="$WARNINGS | Setup stale: sub-project .claude/ changed. Run /agent-dev setup to refresh."
+    WARNINGS="$WARNINGS | Setup stale: sub-project .claude/ changed. Run /pilot setup to refresh."
   fi
 elif ls "$PWD"/*/.claude/settings.json &>/dev/null 2>&1; then
   # Manifest doesn't exist but sub-projects have .claude/ — suggest initial setup
-  WARNINGS="$WARNINGS | Monorepo detected with sub-project .claude/ configs. Run /agent-dev setup to merge capabilities."
+  WARNINGS="$WARNINGS | Monorepo detected with sub-project .claude/ configs. Run /pilot setup to merge capabilities."
 fi
 
 if [ -n "$WARNINGS" ]; then
-  echo "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"agent-dev:$WARNINGS\"}}"
+  echo "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"pilot:$WARNINGS\"}}"
 fi
 
 exit 0

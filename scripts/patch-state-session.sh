@@ -6,7 +6,7 @@ INPUT=$(cat)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 
 # Only act on state.json writes
-echo "$FILE" | grep -q '.agent-dev/state.json' || exit 0
+echo "$FILE" | grep -q '.pilot/state.json' || exit 0
 [ ! -f "$FILE" ] && exit 0
 command -v jq &>/dev/null || exit 0
 

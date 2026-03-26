@@ -1,5 +1,5 @@
 #!/bin/bash
-# agent-dev Stop Hook
+# pilot Stop Hook
 # Prevents the PIPELINE SESSION from stopping mid-pipeline.
 # Session isolation: only blocks the session that started the pipeline.
 # Anti-loop: if blocked 3+ times without state change, allow exit.
@@ -8,8 +8,8 @@ set -euo pipefail
 
 HOOK_INPUT=$(cat)
 
-STATE_FILE="$PWD/.agent-dev/state.json"
-COUNTER_FILE="$PWD/.agent-dev/.stop-hook-counter"
+STATE_FILE="$PWD/.pilot/state.json"
+COUNTER_FILE="$PWD/.pilot/.stop-hook-counter"
 
 [[ ! -f "$STATE_FILE" ]] && exit 0
 command -v jq &>/dev/null || exit 0
@@ -61,17 +61,17 @@ fi
 
 # Build resume prompt
 CURRENT_STEP=$(jq -r '.currentStep // empty' "$STATE_FILE" 2>/dev/null)
-RESUME="agent-dev pipeline active (phase: $PHASE). Continue NOW."
-RESUME="$RESUME Read .agent-dev/state.json and phases.md."
+RESUME="pilot pipeline active (phase: $PHASE). Continue NOW."
+RESUME="$RESUME Read .pilot/state.json and phases.md."
 
 case "$PHASE" in
   FETCH)     RESUME="$RESUME Proceed to RESOLVE." ;;
   RESOLVE)   RESUME="$RESUME Resolve project and proceed to DESIGN." ;;
-  DESIGN)    RESUME="$RESUME Invoke @agent-dev:tech-designer." ;;
-  REVIEW)    RESUME="$RESUME Invoke @agent-dev:design-reviewer." ;;
+  DESIGN)    RESUME="$RESUME Invoke @pilot:tech-designer." ;;
+  REVIEW)    RESUME="$RESUME Invoke @pilot:design-reviewer." ;;
   PLAN)      RESUME="$RESUME Generate plan and proceed to IMPLEMENT." ;;
-  IMPLEMENT) RESUME="$RESUME Invoke @agent-dev:implementer with plan." ;;
-  CODE_REVIEW) RESUME="$RESUME Invoke @agent-dev:code-reviewer." ;;
+  IMPLEMENT) RESUME="$RESUME Invoke @pilot:implementer with plan." ;;
+  CODE_REVIEW) RESUME="$RESUME Invoke @pilot:code-reviewer." ;;
   VISUAL_CHECK) RESUME="$RESUME Run visual design check (Figma + Chrome DevTools)." ;;
   PR)        RESUME="$RESUME Create draft PR." ;;
   PROJECT_TRANSITION) RESUME="$RESUME Archive artifacts and advance to next project." ;;
@@ -79,7 +79,7 @@ esac
 
 jq -n \
   --arg reason "$RESUME" \
-  --arg msg "[agent-dev] pipeline active ($PHASE) — auto-continuing (attempt $BLOCK_COUNT/3)" \
+  --arg msg "[pilot] pipeline active ($PHASE) — auto-continuing (attempt $BLOCK_COUNT/3)" \
   '{ "decision": "block", "reason": $reason, "systemMessage": $msg }'
 
 exit 0

@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A Claude Code **plugin** (`claude plugin install github:housesigma/agent-dev`) that adds an autonomous development pipeline. Given a Notion requirement URL, it autonomously fetches requirements, designs a technical approach, reviews the design, implements code (with TDD for testable steps), reviews the code, and creates a draft PR — all without human intervention unless escalation is needed.
+A Claude Code **plugin** (`claude plugin install github:housesigma/pilot`) that adds an autonomous development pipeline. Given a Notion requirement URL, it autonomously fetches requirements, designs a technical approach, reviews the design, implements code (with TDD for testable steps), reviews the code, and creates a draft PR — all without human intervention unless escalation is needed.
 
 ## Project Structure
 
 ```
 .claude-plugin/plugin.json   ← Plugin manifest (name, version, metadata)
-skills/agent-dev/SKILL.md    ← Main skill definition (entry point, triggers, allowed tools)
-skills/agent-dev/references/  ← phases.md (detailed phase instructions), prompts.md
+skills/pilot/SKILL.md    ← Main skill definition (entry point, triggers, allowed tools)
+skills/pilot/references/  ← phases.md (detailed phase instructions), prompts.md
 agents/                       ← Subagent definitions (markdown frontmatter + system prompts)
   tech-designer.md            ← Opus, READ-ONLY, generates tech design + testable components table
   design-reviewer.md          ← Opus, READ-ONLY, skeptical independent review
@@ -29,7 +29,7 @@ scripts/                      ← Shell scripts for gates, health checks, contex
   patch-state-session.sh      ← (Legacy) sessionId injection — now inlined in validate-artifacts.sh
   post-compact-resume.sh      ← PostCompact hook: restores pipeline context after compaction
   health-check.sh             ← Detects stalled pipelines, sends macOS notifications
-  write-telemetry.sh          ← Appends pipeline run metrics to ~/.agent-dev-telemetry.tsv
+  write-telemetry.sh          ← Appends pipeline run metrics to ~/.pilot-telemetry.tsv
 .mcp.json                     ← MCP server config (Notion, Figma, Chrome DevTools)
 .lsp.json                     ← LSP server config (TypeScript, Swift, Kotlin, PHP)
 ```
@@ -44,8 +44,8 @@ FETCH → RESOLVE → [DESIGN → REVIEW →] PLAN → IMPLEMENT → CODE_REVIEW
 
 - Phases in brackets are skipped for **simple** tasks (≤3 ACs, 1-3 files)
 - **Parent agent** (lightweight orchestrator) executes FETCH, RESOLVE, PLAN, PR, PROJECT_TRANSITION directly
-- **4 Opus subagents** execute DESIGN, REVIEW, IMPLEMENT, CODE_REVIEW — parent persists their output to `.agent-dev/` files immediately
-- State machine in `.agent-dev/state.json` tracks progress; all artifacts in CWD's `.agent-dev/`
+- **4 Opus subagents** execute DESIGN, REVIEW, IMPLEMENT, CODE_REVIEW — parent persists their output to `.pilot/` files immediately
+- State machine in `.pilot/state.json` tracks progress; all artifacts in CWD's `.pilot/`
 - **Multi-project**: after PR, auto-transitions to next project in queue via PROJECT_TRANSITION
 
 ### Context Boundary Design
@@ -91,7 +91,7 @@ Notion, Figma, and Chrome DevTools accessed via MCP. MCP auth does NOT propagate
 
 ### Telemetry
 
-Every pipeline run appends a row to `~/.agent-dev-telemetry.tsv`:
+Every pipeline run appends a row to `~/.pilot-telemetry.tsv`:
 
 **Score formula** (0-100):
 - Completion: 40 pts (ran to COMPLETED/PR/PROJECT_TRANSITION)
@@ -173,7 +173,7 @@ On each model upgrade, run these experiments using the SAME requirement for comp
 - Variant: One invocation per step (fresh context each time)
 - Metric: Anchor regression count, total time, context window usage
 
-**How to Run**: Pick a completed pipeline run → re-run same `requirement.json` with variant → compare artifacts (`review.json`, `code-review.json`, `git diff`) → record in `.agent-dev/experiments/<model>-<date>.md`
+**How to Run**: Pick a completed pipeline run → re-run same `requirement.json` with variant → compare artifacts (`review.json`, `code-review.json`, `git diff`) → record in `.pilot/experiments/<model>-<date>.md`
 
 ### Local Development
 
@@ -199,7 +199,7 @@ The plugin is designed for HouseSigma's monorepo structure:
 └── realagent-datafeed/            (PHP, Phalcon)
 ```
 
-Each sub-project is an independent git repo. The monorepo root is NOT a git repo. `.agent-dev/` artifacts always live in CWD, never inside sub-projects.
+Each sub-project is an independent git repo. The monorepo root is NOT a git repo. `.pilot/` artifacts always live in CWD, never inside sub-projects.
 
 ## Key Conventions
 
@@ -208,5 +208,5 @@ Each sub-project is an independent git repo. The monorepo root is NOT a git repo
 - **Pipeline is fully autonomous**: never stops to ask the user unless review ESCALATES or unrecoverable error
 - **Each implementation step = one commit**: atomic undo points (test + code together for TESTABLE steps)
 - **PRs are always draft**: never merge automatically
-- **Subagent namespace**: always use `@agent-dev:tech-designer` (with plugin prefix), not `@tech-designer`
+- **Subagent namespace**: always use `@pilot:tech-designer` (with plugin prefix), not `@tech-designer`
 - **LSP caveat**: do NOT use LSP on `.vue` files (hangs); only use on `.ts/.js/.tsx/.jsx`

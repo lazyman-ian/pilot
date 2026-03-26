@@ -3,11 +3,11 @@
 *.swo
 
 # Pipeline artifacts (generated at runtime in user projects)
-.agent-dev/
+.pilot/
 
 # Setup artifacts (machine-specific symlink manifest)
-.claude/.agent-dev-setup.json
-.claude/.agent-dev-hooks-backup.json
+.claude/.pilot-setup.json
+.claude/.pilot-hooks-backup.json
 .alma-snapshots
 
 # Codex review results (machine-specific)
