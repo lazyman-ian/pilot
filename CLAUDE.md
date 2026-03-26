@@ -60,14 +60,18 @@ Agents are split by **what context they need**, not by role:
 Critical gates enforced by hook scripts with `exit 2` (block):
 - **Pre-PR gate** (`agent-dev-gate.sh pre-pr`): blocks `gh pr create` unless pipeline is in PR phase
 - **Stop hook** (`stop-hook.sh`): prevents session exit mid-pipeline (session-isolated, anti-loop with 3-attempt limit)
-- **Session patching** (`patch-state-session.sh`): auto-injects `sessionId` on every `state.json` write
+- **Artifact validation** (`validate-artifacts.sh`): PostToolUse(Write) dispatcher — routes to artifact-specific validators:
+  - `validate-plan.sh`: blocks plan.json if any non-scaffolding step has empty `acRefs`
+  - `validate-code-review.sh`: blocks code-review.json if FIX_REQUIRED + confidence > 72, rubric < 5 + APPROVE, or confidence diverges from rubric mean
+  - `validate-review.sh`: blocks review.json if ungrounded API changes + APPROVE verdict
+  - Also inlines session patching for state.json (previously `patch-state-session.sh`)
 - **Post-compact resume** (`post-compact-resume.sh`): restores pipeline context after compaction
 
 ### Quality Gates
 
 - **PLAN**: environment health check (build + existing tests), command validation (dry-run), test infrastructure detection, step testability classification, convention file discovery. All persist in plan.json
 - **Implementer TDD**: TESTABLE steps follow RED→GREEN with anchor set regression protection; VERIFY_ONLY steps use build verification; pre-existing failures exempted via baselineFailures/baselineBuildFailure
-- **Code-reviewer**: RUBRIC_SCORES (Correctness/Completeness/Convention/Regression each X/10), PLAN_COVERAGE, TEST_COVERAGE, REQUIREMENTS_COVERAGE. Uses validated commands from PLAN (not raw CLAUDE.md). Baseline-aware test evaluation. On FIX_REQUIRED: re-invokes implementer in **fix mode** (not parent) — implementer reconstructs anchor set from git history, addresses issues by severity, commits fix. Max 2 rounds before ESCALATE.
+- **Code-reviewer**: Double-layer review: Hard Gates (binary pass/fail) then RUBRIC_SCORES (Correctness/Completeness/Convention/Regression each X/10, script-enforced consistency). Interactive QA via Chrome DevTools MCP for web-hybrid (conditional). PLAN_COVERAGE, TEST_COVERAGE, REQUIREMENTS_COVERAGE. Uses validated commands from PLAN (not raw CLAUDE.md). Baseline-aware test evaluation. On FIX_REQUIRED: re-invokes implementer in **fix mode** (not parent) — implementer reconstructs anchor set from git history, addresses issues by severity, commits fix. Max 3 rounds before ESCALATE.
 - **VISUAL_CHECK**: mandatory when gate passes (Figma + web-hybrid + .vue/.scss/.css via merge-base); writes visual-review.json even if SKIPPED; post-fix runs build + lint + tests
 
 ### Complexity Routing
@@ -141,13 +145,31 @@ No automated test suite. Testing is manual — run the pipeline against a Notion
 
 ### Architecture Stress Testing
 
-On each model upgrade, test whether pipeline components are still load-bearing:
-- Can tech-designer + design-reviewer merge? (Is anti-sycophancy isolation still needed?)
-- Can implementer self-review? (Is separate code-reviewer still needed?)
-- Can any phase be skipped for standard tasks?
-- Does the complexity router's "simple" threshold need adjustment?
-
 Components encode assumptions about model limitations — re-validate as models improve.
+On each model upgrade, run these experiments using the SAME requirement for comparability:
+
+**Experiment 1: Designer + Reviewer Merge**
+- Hypothesis: Single agent can generate design AND critically review it
+- Control: Current pipeline (separate tech-designer + design-reviewer)
+- Variant: Single agent, two-pass (generate → adversarial self-review with full checklist)
+- Metric: Ungrounded assumptions caught (control vs variant)
+- Pass: Variant catches ≥ 80% of what control catches
+- Test requirement: One with known API scope boundaries (e.g., Android AB test)
+
+**Experiment 2: Implementer Self-Review**
+- Hypothesis: Implementer can catch its own code issues without separate code-reviewer
+- Control: Current pipeline (implementer + code-reviewer)
+- Variant: Implementer runs self-review checklist before returning
+- Metric: Issues missed by variant that control caught
+- Pass: 0 CRITICAL missed, ≤ 1 MAJOR missed
+
+**Experiment 3: Implementer Context Persistence**
+- Hypothesis: One invocation per step (fresh context) vs all steps in one invocation
+- Control: Current (one invocation, all steps sequential in same context)
+- Variant: One invocation per step (fresh context each time)
+- Metric: Anchor regression count, total time, context window usage
+
+**How to Run**: Pick a completed pipeline run → re-run same `requirement.json` with variant → compare artifacts (`review.json`, `code-review.json`, `git diff`) → record in `.agent-dev/experiments/<model>-<date>.md`
 
 ### Local Development
 
