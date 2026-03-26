@@ -1,10 +1,12 @@
 {
-  "figma": {
-    "type": "http",
-    "url": "https://mcp.figma.com/mcp"
-  },
-  "chrome-devtools": {
-    "command": "npx",
-    "args": ["-y", "chrome-devtools-mcp@latest"]
+  "mcpServers": {
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    }
   }
 }
