@@ -43,8 +43,8 @@ MSG="$MSG\n1. Read $STATE for full pipeline state"
 case "$PHASE" in
   FETCH)    MSG="$MSG\n2. Check if .pilot/requirement.json exists, continue FETCH" ;;
   RESOLVE)  MSG="$MSG\n2. Continue project resolution" ;;
-  DESIGN)   MSG="$MSG\n2. Read .pilot/requirement.json, invoke @pilot:tech-designer" ;;
-  REVIEW)   MSG="$MSG\n2. Read .pilot/tech-design.md, invoke @pilot:design-reviewer" ;;
+  DESIGN)   MSG="$MSG\n2. MANDATORY: Read .pilot/requirement.json, invoke @pilot:tech-designer subagent. Do NOT write tech-design.md yourself." ;;
+  REVIEW)   MSG="$MSG\n2. MANDATORY: Invoke @pilot:design-reviewer subagent. Do NOT review the design yourself." ;;
   ESCALATED)
     # Determine escalation source: code-review.json exists → code review escalation; otherwise design review
     if [ -f "$PWD/.pilot/code-review.json" ]; then
