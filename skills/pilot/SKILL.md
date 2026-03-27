@@ -149,6 +149,14 @@ After each subagent returns, YOU write its output to `.pilot/` immediately.
 }
 ```
 
+## Resolved Plugin Paths
+
+These are resolved at load time — use them when phases.md needs plugin paths:
+- **Scripts directory**: `${CLAUDE_PLUGIN_ROOT}/scripts`
+- **Plugin version file**: `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`
+
+During Phase 1 (FETCH), persist these resolved paths into `state.json` as `pluginScriptsDir` and read version into `pluginVersion`. Telemetry and other scripts read from state.json — never reference `${CLAUDE_PLUGIN_ROOT}` in Bash commands.
+
 ## Phase Instructions
 
 Read `${CLAUDE_SKILL_DIR}/references/phases.md` for detailed phase-by-phase instructions.

@@ -54,8 +54,8 @@ case "$PHASE" in
     fi
     ;;
   PLAN)     MSG="$MSG\n2. Read .pilot/tech-design.md (if exists — simple tasks skip design) + requirement.json, generate plan" ;;
-  IMPLEMENT)MSG="$MSG\n2. Read .pilot/plan.json, invoke @pilot:implementer" ;;
-  CODE_REVIEW) MSG="$MSG\n2. Invoke @pilot:code-reviewer" ;;
+  IMPLEMENT)MSG="$MSG\n2. MANDATORY: Read .pilot/plan.json, then invoke @pilot:implementer subagent. Do NOT implement code yourself — you are the orchestrator. The implementer has Recovery logic to pick up from where it left off." ;;
+  CODE_REVIEW) MSG="$MSG\n2. MANDATORY: Invoke @pilot:code-reviewer subagent. Do NOT review code yourself." ;;
   VISUAL_CHECK) MSG="$MSG\n2. Run visual check: Figma screenshot vs browser screenshot comparison" ;;
   PR)       MSG="$MSG\n2. Push branch and create draft PR" ;;
   PROJECT_TRANSITION) MSG="$MSG\n2. Archive artifacts, advance to next project in queue" ;;

@@ -30,7 +30,7 @@ If CWD is a monorepo root with multiple sub-projects:
 Every pipeline run (COMPLETED or FAILED) writes a row to `~/.pilot-telemetry.tsv`.
 - **Score formula** (0-100): completion(40) + low-interventions(30) + design-first-pass(15) + code-review-first-pass(15)
 - **metrics.interventions**: increment whenever the pipeline stops to ask the user (ESCALATED, unrecoverable error)
-- Written by: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "<version>"`
+- Written by: `bash "$(jq -r .pluginScriptsDir state.json)/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .pluginVersion state.json)"`
 - On FAILED: set `metrics.completedAt`, then run the telemetry script before reporting the error
 
 ---
@@ -68,8 +68,22 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
      "metadata": { "priority": "string", "status": "string" }
    }
    ```
-6. Write `.pilot/state.json`: `{ "pipelineId": "pipeline-<timestamp>", "sessionId": null, "phase": "FETCH", "notionUrl": "<url>", "metrics": {"interventions": 0, "completedAt": null}, "createdAt": "<ISO>", "updatedAt": "<ISO>" }`
+6. Write `.pilot/state.json`:
+   ```json
+   {
+     "pipelineId": "pipeline-<timestamp>",
+     "sessionId": null,
+     "phase": "FETCH",
+     "notionUrl": "<url>",
+     "pluginScriptsDir": "<resolved scripts path from SKILL.md Resolved Plugin Paths>",
+     "pluginVersion": "<read from resolved plugin version file>",
+     "metrics": {"interventions": 0, "completedAt": null},
+     "createdAt": "<ISO>",
+     "updatedAt": "<ISO>"
+   }
+   ```
    IMPORTANT: sessionId is auto-injected by the PostToolUse hook on every state.json write. Always write `null` — never hardcode a value.
+   IMPORTANT: `pluginScriptsDir` and `pluginVersion` must come from the resolved paths in SKILL.md — do NOT use `${CLAUDE_PLUGIN_ROOT}` in Bash commands (it's only available in hooks, not in agent Bash).
 7. Log a one-line summary then IMMEDIATELY continue — do NOT stop, do NOT ask the user anything:
    "需求: **<title>** | 平台: <affectedProjects> | AC: <count> 条 | Figma: <有/无>"
 8. Update state.json: phase → RESOLVE. Proceed to Phase 1.5 in the SAME response.
@@ -300,8 +314,13 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
 
 ## Phase 5: IMPLEMENT
 
-Delegate to `@pilot:implementer` — a subagent with fresh context that implements
+**ALWAYS delegate to `@pilot:implementer`** — a subagent with fresh context that implements
 all steps using JIT file reading (reads real code before each step, not predictions).
+
+**YOU (parent) MUST NOT write project code directly.** You are an orchestrator.
+If resuming mid-implementation: check plan.json step statuses, then re-invoke
+`@pilot:implementer` with remaining steps. The implementer has Recovery logic
+to reconstruct anchor set from git history.
 
 1. Read `.pilot/plan.json` and `.pilot/tech-design.md` (if exists — simple tasks skip DESIGN)
 2. Read `<projectDir>/CLAUDE.md` (the implementer subagent cannot auto-load it)
@@ -507,7 +526,7 @@ YOU do this directly using Figma MCP + Chrome DevTools MCP.
      → phase → PROJECT_TRANSITION, proceed to Phase 8
    - **Last project**:
      → Set metrics.completedAt → <ISO> (but keep phase as PR until telemetry is written)
-     → Write telemetry: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
+     → Write telemetry: `bash "$(jq -r .pluginScriptsDir "$PWD/.pilot/state.json")/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .pluginVersion "$PWD/.pilot/state.json")"`
      → NOW set phase → COMPLETED (only after telemetry is durable)
      → Report all PRs + scores. Ask: "清理 .pilot/ 文件？"
 
@@ -521,7 +540,7 @@ Transition from one completed project to the next in the queue.
 2. `mkdir -p .pilot/completed` (ensure directory exists before marker/archive)
 3. **Write telemetry** (idempotent — check marker first):
    - If `.pilot/completed/<targetProject>.telemetry` marker does NOT exist (use targetProject from state.json):
-     → Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")"`
+     → Run `bash "$(jq -r .pluginScriptsDir "$PWD/.pilot/state.json")/write-telemetry.sh" "$PWD/.pilot/state.json" "$(jq -r .pluginVersion "$PWD/.pilot/state.json")"`
      → Create the marker file
    - Report: "✅ **<targetProject>** PR: <prUrl> (score: <N>)"
 
