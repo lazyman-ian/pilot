@@ -3,6 +3,8 @@
 Read the section matching your current phase from state.json.
 After compaction, re-read this file and state.json to resume.
 
+**state.json update rule**: When writing state.json after initial FETCH creation, always preserve `sessionId`, `pipelineId`, `pluginScriptsDir`, and `pluginVersion` from the current file. You already read state.json at phase start — carry those values forward. Never overwrite them with `null`.
+
 ## Compact Instructions
 
 When compacting, preserve in priority order:
@@ -82,7 +84,7 @@ Do NOT create a subagent for fetching — MCP auth doesn't propagate to subagent
      "updatedAt": "<ISO>"
    }
    ```
-   IMPORTANT: sessionId is auto-injected by the PostToolUse hook on every state.json write. Always write `null` — never hardcode a value.
+   IMPORTANT: sessionId is `null` on initial creation — the PostToolUse hook auto-injects the real session ID. On all subsequent state.json writes (any phase after FETCH), **preserve the sessionId value from your last read** — do NOT write `null`.
    IMPORTANT: `pluginScriptsDir` and `pluginVersion` must come from the resolved paths in SKILL.md — do NOT use `${CLAUDE_PLUGIN_ROOT}` in Bash commands (it's only available in hooks, not in agent Bash).
 7. Log a one-line summary then IMMEDIATELY continue — do NOT stop, do NOT ask the user anything:
    "需求: **<title>** | 平台: <affectedProjects> | AC: <count> 条 | Figma: <有/无>"
@@ -205,8 +207,9 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
    - Glob `<projectDir>/.claude/docs/*.md` (if exists — some projects keep setup/auth notes here)
    - Record found paths (absolute) — these will be passed to implementer and code-reviewer prompts.
 3. **Environment health check** — verify the project builds and existing tests pass BEFORE planning:
-   a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`)
-      - If the command from CLAUDE.md doesn't exist, find the underlying command and use that instead
+   a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`, `make build`)
+      - **verificationCommand MUST be a Bash-runnable command** (not an MCP tool like `BuildProject`). The implementer subagent only has Bash — no MCP tools. If CLAUDE.md only documents MCP-based building, check the project's Makefile or derive an equivalent CLI command (e.g., `xcodebuild`, `make build`).
+      - If the command from CLAUDE.md doesn't exist or is MCP-only, find the underlying CLI command and use that instead
       - If build fails on the clean branch → record as `baselineBuildFailure: true` in plan.json. VERIFY_ONLY steps and code review should treat pre-existing build failures the same way as baselineFailures for tests.
    b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
@@ -214,11 +217,13 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
       **Important**: use the check-only variant (no `--fix` flag) to avoid mutating the working tree before the feature branch is created
    d. Record all validated commands + baseline failures list — persist in plan.json:
       `verificationCommand` (build/typecheck), `testInfra` (test), `lintCommand` (lint, if separate), `baselineFailures`
+      **Validation**: before persisting, verify each command is runnable via `bash -c "<command>"` dry-run. If a command is an MCP tool name or IDE action (not bash-executable), replace it with the CLI equivalent.
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
-   - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, etc.)
+   - Also check **Makefile** for `test`/`build` targets (e.g., `make test`, `make build`) — these are often the canonical CLI wrappers
+   - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, `**/*Tests.swift`, etc.)
    - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
-   - If found → record test command (e.g., `pnpm vitest run`) and example test file paths as patterns
+   - If found → record the **Bash-runnable** test command (e.g., `pnpm vitest run`, `make test`) and example test file paths as patterns
 5. **Build step list** from available context:
    - **Standard/Complex** (tech-design.md exists): read `.pilot/tech-design.md`, break into atomic steps
    - **Simple** (no tech-design.md): read `.pilot/requirement.json` directly, derive 1-3 steps from the ACs + affected files. Grep codebase to identify exact files to modify. No architecture doc needed for simple changes.
