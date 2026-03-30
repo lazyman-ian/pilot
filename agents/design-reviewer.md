@@ -4,6 +4,7 @@ description: >
   Critical independent review of technical designs. READ-ONLY. Uses Opus for depth.
   Trigger: after tech design created, reviewing design, checking design quality.
 model: opus
+maxTurns: 200
 tools: Read, Glob, Grep, LSP
 ---
 

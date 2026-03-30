@@ -4,6 +4,7 @@ description: >
   Implement planned code changes step by step with JIT file reading, TDD for testable steps, and commits.
   Trigger: after plan approved, executing implementation steps.
 model: opus
+maxTurns: 200
 tools: Read, Write, Edit, Bash, Glob, Grep, LSP
 ---
 

@@ -4,6 +4,7 @@ description: >
   Comprehensive code review of all implementation changes. Uses Opus.
   Trigger: after implementation complete, reviewing code before PR, final review.
 model: opus
+maxTurns: 200
 tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*
 ---
 

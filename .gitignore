@@ -12,3 +12,6 @@
 
 # Codex review results (machine-specific)
 .codex-review/results/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json

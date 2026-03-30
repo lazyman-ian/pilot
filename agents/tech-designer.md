@@ -4,6 +4,7 @@ description: >
   Generate technical design from requirements. READ-ONLY codebase analysis.
   Trigger: after requirements fetched, creating tech design, designing solution.
 model: opus
+maxTurns: 200
 tools: Read, Glob, Grep, LSP
 ---
 
