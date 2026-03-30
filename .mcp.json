@@ -5,6 +5,16 @@
   },
   "chrome-devtools": {
     "command": "npx",
-    "args": ["-y", "chrome-devtools-mcp@latest"]
+    "args": [
+      "-y",
+      "chrome-devtools-mcp@latest"
+    ]
+  },
+  "xcode": {
+    "type": "stdio",
+    "command": "xcrun",
+    "args": [
+      "mcpbridge"
+    ]
   }
 }
