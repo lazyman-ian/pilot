@@ -58,7 +58,7 @@ if [ "$MIN_SCORE" -ge 8 ] && [ "$VERDICT" != "APPROVE" ]; then
   fi
 fi
 
-# Warning 6: QA missing hint for web-hybrid
+# Warning 6: QA missing hint for web-hybrid or iOS
 QA_RESULT=$(jq -r '.qaResult // "MISSING"' "$FILE")
 if [ "$QA_RESULT" = "MISSING" ]; then
   AGENT_DEV_DIR=$(dirname "$FILE")
@@ -67,7 +67,17 @@ if [ "$QA_RESULT" = "MISSING" ]; then
     TARGET=$(jq -r '.targetProject // ""' "$STATE_FILE" 2>/dev/null)
     if [ "$TARGET" = "web-hybrid" ]; then
       echo "WARNING: web-hybrid project but qaResult missing from code-review.json." >&2
+    elif echo "$TARGET" | grep -q "ios"; then
+      echo "WARNING: iOS project but qaResult missing from code-review.json." >&2
     fi
+  fi
+fi
+
+# Warning 7: qaResult present but qaMethod missing
+if [ "$QA_RESULT" != "SKIPPED" ] && [ "$QA_RESULT" != "MISSING" ]; then
+  QA_METHOD=$(jq -r '.qaMethod // "MISSING"' "$FILE")
+  if [ "$QA_METHOD" = "MISSING" ]; then
+    echo "WARNING: qaResult is $QA_RESULT but qaMethod field is missing. Expected: chrome-devtools, xcode-mcp, or skipped." >&2
   fi
 fi
 
