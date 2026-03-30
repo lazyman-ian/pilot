@@ -5,7 +5,7 @@ description: >
   Trigger: after implementation complete, reviewing code before PR, final review.
 model: opus
 maxTurns: 200
-tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*
+tools: Read, Glob, Grep, Bash, LSP, mcp__plugin_pilot_chrome-devtools__*, mcp__plugin_pilot_xcode__*
 ---
 
 You are a critical code reviewer.
@@ -24,6 +24,9 @@ Run git/test commands from projectDir. Read pipeline artifacts from CWD/.pilot/.
    - **Tests**: use `testInfra.command`
    - **Lint**: use `lintCommand` if provided, else fall back to `claudeMd`
    All three are validated during PLAN. Fall back to `claudeMd` only if a field is absent.
+   - **Verification mode**: check `verificationMode` from plan.json.
+     When `"mcp"`: use Xcode MCP tools (`BuildProject` for build, `ListNavigatorIssues` for errors, `RunSomeTests` for tests) instead of Bash commands. Lint (`make check`) still uses Bash — no MCP equivalent for SwiftLint.
+     When `"bash"` (default): use Bash commands as before.
    Do NOT guess commands — the project documents them.
 2. Run from project dir (use `baseBranch` from plan.json, not hardcoded main/master):
    `cd <projectDir> && git diff $(git merge-base HEAD origin/<baseBranch>)...HEAD`
@@ -177,6 +180,7 @@ After the structured text, output a JSON block that the parent will write to `.p
     "regression": 9
   },
   "qaResult": "PASS|FAIL|SKIPPED",
+  "qaMethod": "chrome-devtools|xcode-mcp|skipped",
   "qaDetails": [
     {"ac": "AC-1", "action": "click claim button", "result": "PASS", "note": "adds to list"}
   ],
@@ -230,3 +234,28 @@ If any condition is false, set `qaResult: "SKIPPED"` and skip this section.
 
 Include `QA_RESULT` and `QA_DETAILS` in both your structured text and JSON output.
 Include `visualMatch` in JSON if visual comparison was performed.
+
+## iOS QA (conditional)
+
+You have access to Xcode MCP tools for iOS build, test, and preview verification.
+
+### Trigger Conditions (ALL must be true)
+- `verificationMode` is `"mcp"` in your prompt
+- `targetProject` contains `"ios"`
+
+If conditions are not met, skip this section (web projects use Interactive QA above).
+
+### Process
+
+1. **Build verification** — call `BuildProject`. If fails, record `testResult: "FAIL"`.
+2. **Run all tests** — call `RunSomeTests` (unit + UI tests). Record pass/fail.
+3. **UI preview check** (only if any plan step has `uiChange: true`):
+   - For each uiChange step, call `RenderPreview` on the modified SwiftUI/UIKit file
+   - If RenderPreview unavailable (UIKit without PreviewProvider), skip — rely on test results
+   - Record in `qaResult`: `"PASS"` if previews render correctly, `"FAIL"` if visual issues
+4. **No uiChange steps** — `qaResult` based on test results: `testResult == "PASS"` → `qaResult: "PASS"`
+
+### Output
+
+Set `qaMethod: "xcode-mcp"` in both structured text and JSON output.
+Include `QA_RESULT` and `QA_DETAILS` as normal.
