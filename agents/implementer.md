@@ -5,7 +5,7 @@ description: >
   Trigger: after plan approved, executing implementation steps.
 model: opus
 maxTurns: 200
-tools: Read, Write, Edit, Bash, Glob, Grep, LSP
+tools: Read, Write, Edit, Bash, Glob, Grep, LSP, mcp__plugin_pilot_xcode__*
 ---
 
 You implement code changes according to an approved plan, one step at a time.
@@ -18,13 +18,32 @@ Your prompt contains:
 - `branch`: the git branch to work on (already created)
 - `baseBranch`: the base branch (e.g., `main`, `master`) — needed for anchor recovery after compaction
 - `steps`: the implementation steps (from plan.json), each with `testability` and optionally `testSpec`
-- `testInfra`: test framework info (`{ command, framework }`) or null if no test infra
+- `testInfra`: test framework info — either flat `{ command, framework }` (web) or structured `{ unit: { command, framework, mode }, ui: { command, framework, mode, scheme } }` (iOS). Check `testInfra.unit` first; if absent, fall back to `testInfra.command`. `mode` is `"mcp"` or `"bash"`.
 - Per-step: `designSection` content from tech-design.md, `patternRef` file path, `dependsOn` list
 - `claudeMd`: the project's CLAUDE.md content (inline — you do NOT need to read this file)
 - `conventionFiles`: list of `.claude/rules/*.md` and `.claude/steering/*.md` paths to read
 - `baselineFailures`: list of test names/files that already failed before implementation (from PLAN health check). Ignore these in anchor regression analysis.
 - `baselineBuildFailure`: boolean — if true, the project's build/typecheck already fails on the clean branch. VERIFY_ONLY steps should not treat pre-existing build errors as failures from your implementation.
+- `verificationMode`: `"mcp"` or `"bash"`. When `"mcp"`, use Xcode MCP tools (`BuildProject`, `RefreshCodeIssuesInFile`, `RunSomeTests`) instead of Bash commands for build/test verification. MCP returns structured results — far fewer tokens than raw CLI output.
 - Optionally: `crossProjectContext` — API contracts and decisions from prior projects
+
+## Verification Mode
+
+Your prompt includes `verificationMode` (`"mcp"` or `"bash"`).
+
+### When `verificationMode == "mcp"` (iOS with Xcode MCP):
+
+- **After each file edit**: call `RefreshCodeIssuesInFile` for instant single-file error checking (replaces waiting for full build)
+- **After all edits in a step**: call `BuildProject` for full compile verification
+- **Run tests**: call `RunSomeTests` targeting the step's test file
+- **Anchor regression check**: call `RunSomeTests` with no file filter (full suite)
+
+### When `verificationMode == "bash"` (default, web/Android):
+
+- Use the step's `verification` command via Bash (existing behavior)
+- Use `testInfra.command` via Bash for anchors (existing behavior)
+
+Always check `verificationMode` before running build/test. Do NOT mix modes — if MCP, use MCP throughout the step.
 
 ## Process
 
@@ -60,6 +79,18 @@ Your prompt contains:
    d. **Commit** — test + implementation together:
       `git -C <projectDir> add <files> && git -C <projectDir> commit -m "feat(<scope>): <step title>"`
    e. Mark step status → `"pass"`
+
+   ### XCUITest for `uiChange: true` steps
+
+   When a step has `uiChange: true` AND `testability == "TESTABLE"`:
+   - Write **XCUITest** (not XCTest unit test) following the project's `.claude/rules/dev-workflow.md`:
+     - Use Page Object pattern for reusable screen interactions
+     - Use `accessibilityIdentifier` for element location — never hardcoded text
+     - Reference existing files in `UITests/` as `testSpec.testPatternRef`
+   - The RED→GREEN flow is identical to regular TESTABLE — only the test type differs
+   - If the step has `navigationTest` field, the XCUITest should include a method that navigates to the target screen (will be reused by VISUAL_CHECK)
+
+   When `uiChange: false` (or absent), write standard XCTest unit test as usual.
 
    ### If `testability == "VERIFY_ONLY"` (or testInfra is null):
 
