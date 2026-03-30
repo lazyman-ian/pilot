@@ -448,12 +448,14 @@ Run sequentially: code review first, then visual check.
    - If tech-design.md exists: include relevant `designSection` content per issue
    The implementer reconstructs anchor set from git history (same as its Recovery flow),
    addresses issues by severity, and commits a fix. See implementer.md "Fix Mode" for details.
-6. **VISUAL_CHECK gate** — check ALL three conditions:
+6. **VISUAL_CHECK gate** — check ALL conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
-   - `targetProject` is `web-hybrid`
-   - Implementation includes UI-related file changes (check `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base origin/<baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`)
+   - At least one plan step has `uiChange: true`
+   - Platform-specific file changes detected:
+     - `web-hybrid`: `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base origin/<baseBranch> HEAD)..HEAD | grep -E '\.(vue|scss|css)$'`
+     - iOS (`targetProject` contains `"ios"`): `git -C <projectDir> diff --name-only $(git -C <projectDir> merge-base origin/<baseBranch> HEAD)..HEAD | grep -E '\.(swift|storyboard|xib)$'`
 
-   **All three true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
+   **All conditions true** → update state.json: phase → VISUAL_CHECK, proceed to Phase 6b
    **Any false** → update state.json: phase → PR, proceed to Phase 7
 
 ---
@@ -471,12 +473,77 @@ the code-reviewer already performed interactive QA. In this case:
 If `qaResult` is `"SKIPPED"` or absent, execute the full VISUAL_CHECK flow below.
 
 If you reached this phase, the gate in Phase 6a confirmed: Figma designs exist,
-target is web-hybrid, and .vue files were changed. **Do NOT skip this phase.**
+UI changes were planned, and platform-specific files were changed. **Do NOT skip this phase.**
 
 **No silent skipping.** If you cannot complete visual check (e.g., dev server won't start,
-Chrome DevTools MCP unavailable), you MUST still write `visual-review.json` with
+Chrome DevTools MCP unavailable, simulator won't boot), you MUST still write `visual-review.json` with
 `"verdict": "SKIPPED"` and a `"reason"` explaining why. Never jump to PR without writing
 this file — it is the audit trail that visual check was attempted.
+
+### Platform routing
+
+Determine the platform from `targetProject`:
+- `web-hybrid` → Web VISUAL_CHECK flow (below)
+- Contains `"ios"` → iOS VISUAL_CHECK flow (below)
+
+### iOS VISUAL_CHECK flow
+
+YOU do this directly using Figma MCP + Bash (`xcrun simctl`).
+
+1. **Re-read project docs** (may have been compacted since PLAN phase):
+   - Read `<projectDir>/CLAUDE.md` for Xcode workspace, scheme, environment setup
+   - Read `.claude/steering/*.md` or `.claude/docs/` if they exist
+
+2. **Get Figma design screenshot**:
+   - Use Figma MCP `get_screenshot` with the fileKey and nodeId from requirement.json
+
+3. **Boot simulator** (if none booted):
+   `xcrun simctl boot "iPhone 16" 2>/dev/null || true`
+   Leave the simulator running — do not shut down after capture.
+
+4. **Build and install app**:
+   - If `verificationMode == "mcp"`: call `BuildProject` via Xcode MCP (auto-installs to booted sim)
+   - If `verificationMode == "bash"`: `make build` or `xcodebuild ...`
+
+5. **Navigate to target screen**:
+   - Read plan.json, find uiChange steps with `navigationTest` field
+   - Run the navigation test to bring the app to the target screen:
+     ```bash
+     xcodebuild test-without-building \
+       -workspace <workspace> -scheme UITests \
+       -destination 'platform=iOS Simulator,name=iPhone 16' \
+       -only-testing:<navigationTest> 2>&1 | tail -5
+     ```
+     (Uses Bash — `RunSomeTests` may not support `-only-testing` granularity. Output limited to last 5 lines.)
+   - If no `navigationTest` available: write `visual-review.json` with `"verdict": "SKIPPED", "reason": "no navigation path to target screen"`, proceed to Phase 7.
+
+6. **Capture simulator screenshot**:
+   ```bash
+   xcrun simctl io booted screenshot /tmp/pilot-ios-screenshot.png
+   ```
+   Read the screenshot file (Read tool supports images).
+
+7. **Compare** (use your vision capability):
+   - Layout, spacing, colors, typography, component positioning
+   - Compare against Figma design tokens from requirement.json
+   - Same comparison criteria as web
+
+8. **Write** to `.pilot/visual-review.json` (same schema as web):
+   ```json
+   {
+     "matches": ["layout correct", "colors match tokens"],
+     "mismatches": [{"element": "...", "expected": "...", "actual": "..."}],
+     "verdict": "MATCH|MISMATCH|PARTIAL|SKIPPED",
+     "summary": "..."
+   }
+   ```
+
+9. **Decision** (same as web):
+   - MATCH/PARTIAL/SKIPPED → phase → PR
+   - MISMATCH → fix visual issues, rebuild, re-navigate, re-screenshot (max 1 round)
+   - Still mismatched → phase → PR with visual notes in PR body
+
+### Web VISUAL_CHECK flow
 
 YOU do this directly using Figma MCP + Chrome DevTools MCP.
 
