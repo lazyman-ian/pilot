@@ -207,23 +207,39 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
    - Glob `<projectDir>/.claude/docs/*.md` (if exists — some projects keep setup/auth notes here)
    - Record found paths (absolute) — these will be passed to implementer and code-reviewer prompts.
 3. **Environment health check** — verify the project builds and existing tests pass BEFORE planning:
-   a. Run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`, `make build`)
-      - **verificationCommand MUST be a Bash-runnable command** (not an MCP tool like `BuildProject`). The implementer subagent only has Bash — no MCP tools. If CLAUDE.md only documents MCP-based building, check the project's Makefile or derive an equivalent CLI command (e.g., `xcodebuild`, `make build`).
-      - If the command from CLAUDE.md doesn't exist or is MCP-only, find the underlying CLI command and use that instead
-      - If build fails on the clean branch → record as `baselineBuildFailure: true` in plan.json. VERIFY_ONLY steps and code review should treat pre-existing build failures the same way as baselineFailures for tests.
-   b. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
+   a. **Detect verification mode**: check if Xcode MCP tools are available (try calling `BuildProject` — if it responds, set `xcodeMcp: true`).
+      - If `xcodeMcp: true`: read workspace/scheme info from `<projectDir>/CLAUDE.md`. Record:
+        `xcodeMcp: true`, `xcodeProject: { workspace, scheme, testScheme }`, `verificationMode: "mcp"`
+      - If Xcode MCP unavailable: set `xcodeMcp: false`, `verificationMode: "bash"`. Fall back to CLI — find `make build` in Makefile or derive `xcodebuild` command from CLAUDE.md.
+   b. **Run health check** using the detected mode:
+      - When `verificationMode: "mcp"`: call `BuildProject` → structured success/fail. Call `ListNavigatorIssues` for error list.
+      - When `verificationMode: "bash"`: run the project's primary build/typecheck command (e.g., `pnpm vtsc:app`, `./gradlew compileDebugKotlin`, `make build`).
+        **verificationCommand MUST be a Bash-runnable command** (not an MCP tool like `BuildProject`). If CLAUDE.md only documents MCP-based building, check the project's Makefile or derive an equivalent CLI command.
+      - If build fails on the clean branch → record as `baselineBuildFailure: true`.
+   c. If test framework exists, run existing tests: `<test-command>` (no args = full suite)
       - If pre-existing tests fail → note which ones fail (these are NOT our responsibility, but must not be confused with regressions later)
-   c. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too.
+   d. If CLAUDE.md documents a lint command separate from build (e.g., `eslint`, `ktlintCheck`), verify it works too.
       **Important**: use the check-only variant (no `--fix` flag) to avoid mutating the working tree before the feature branch is created
-   d. Record all validated commands + baseline failures list — persist in plan.json:
+   e. Record all validated commands + baseline failures list — persist in plan.json:
       `verificationCommand` (build/typecheck), `testInfra` (test), `lintCommand` (lint, if separate), `baselineFailures`
       **Validation**: before persisting, verify each command is runnable via `bash -c "<command>"` dry-run. If a command is an MCP tool name or IDE action (not bash-executable), replace it with the CLI equivalent.
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
-   - Also check **Makefile** for `test`/`build` targets (e.g., `make test`, `make build`) — these are often the canonical CLI wrappers
+   - Also check **Makefile** for `test`/`build` targets (e.g., `make test`, `make build`)
    - Glob for existing test files (`**/*.test.ts`, `**/*.spec.ts`, `**/*Test.kt`, `**/*Tests.swift`, etc.)
+   - Check for `UITests/` directory and `import XCUITest` files → detect UI test infrastructure
    - If no test framework → set `testInfra: null`, all steps will be `VERIFY_ONLY`
-   - If found → record the **Bash-runnable** test command (e.g., `pnpm vitest run`, `make test`) and example test file paths as patterns
+   - **iOS (xcodeMcp: true)**: use structured format:
+     ```json
+     "testInfra": {
+       "unit": { "command": "RunSomeTests", "framework": "XCTest", "mode": "mcp" },
+       "ui": { "command": "RunSomeTests", "framework": "XCUITest", "mode": "mcp", "scheme": "UITests" }
+     }
+     ```
+     Omit `ui` key if no `UITests/` directory exists.
+   - **Other projects (verificationMode: "bash")**: use flat format:
+     `"testInfra": { "command": "pnpm vitest run", "framework": "vitest" }`
+   - Record example test file paths as patterns for the implementer
 5. **Build step list** from available context:
    - **Standard/Complex** (tech-design.md exists): read `.pilot/tech-design.md`, break into atomic steps
    - **Simple** (no tech-design.md): read `.pilot/requirement.json` directly, derive 1-3 steps from the ACs + affected files. Grep codebase to identify exact files to modify. No architecture doc needed for simple changes.
@@ -235,6 +251,11 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
    - **Classify each step's `testability`**:
      - `TESTABLE`: business logic, API service, store/state, UI component with interactive behavior
      - `VERIFY_ONLY`: type definitions, i18n, routes, config, CSS (verified by build or VISUAL_CHECK)
+   - **Classify each step's `uiChange`** (orthogonal to testability):
+     Mark `uiChange: true` when any file in `filesModify` / `filesCreate` matches:
+     - **iOS**: path contains `/UI/`, `/View/`, `/Cell/`, `/Screen/`; filename contains `View.swift`, `Cell.swift`, `ViewController.swift`; file contains `var body: some View` (SwiftUI); or `*.storyboard`, `*.xib`
+     - **Web**: `*.vue`, `*.scss`, `*.css` (existing VISUAL_CHECK detection, now explicit per-step)
+   - For `uiChange: true` + `TESTABLE` iOS steps, set `testSpec.testPatternRef` to an existing `UITests/` file. Add `navigationTest` field: the XCUITest method name that navigates to the target screen (e.g., `"UITests/MapFilterTests/testNavigateToSliderScreen"`).
    - For TESTABLE steps, add `testSpec`:
      - `testFile`: path for the test file (follow project test conventions)
      - `testPatternRef`: an existing test file to follow as pattern
@@ -263,6 +284,9 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
      "totalSteps": N,
      "baseBranch": "main",
      "branchName": "feat/<slug>",
+     "xcodeMcp": false,
+     "xcodeProject": null,
+     "verificationMode": "bash",
      "testInfra": { "command": "pnpm vitest run", "framework": "vitest" },
      "verificationCommand": "pnpm vtsc:app",
      "lintCommand": "pnpm eslint",
@@ -276,8 +300,10 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
          "description": "...",
          "designSection": "UI Changes §1",
          "testability": "TESTABLE",
+         "uiChange": false,
          "acRefs": ["AC-2", "AC-8"],
          "scaffolding": false,
+         "navigationTest": null,
          "testSpec": {
            "testFile": "packages/store/__tests__/myhome.test.ts",
            "testPatternRef": "packages/store/__tests__/watch.test.ts",
@@ -338,8 +364,9 @@ to reconstruct anchor set from git history.
    - For each step, extract the relevant `designSection` content from tech-design.md (if exists; for simple tasks, use step description directly)
    - **`claudeMd`**: full content of `<projectDir>/CLAUDE.md` (inline — subagents don't auto-load project docs)
    - **`conventionFiles`**: list of `.claude/rules/*.md`, `.claude/steering/*.md`, and `.claude/docs/*.md` paths discovered in PLAN step 2
-   - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3b (so implementer can ignore them during anchor checks)
-   - **`baselineBuildFailure`**: boolean from PLAN step 3a — if true, implementer treats pre-existing build failures as baseline (not regression)
+   - **`baselineFailures`**: list of pre-existing test failures recorded in PLAN step 3c (so implementer can ignore them during anchor checks)
+   - **`baselineBuildFailure`**: boolean from PLAN step 3b — if true, implementer treats pre-existing build failures as baseline (not regression)
+   - **`verificationMode`**: from plan.json (`"mcp"` or `"bash"`) — implementer uses this to choose Xcode MCP vs Bash for build/test
    - If `.pilot/cross-project-summary.md` exists, include it as `crossProjectContext`
 4. Invoke `@pilot:implementer` with the built prompt
 5. Parse the returned summary:
@@ -377,10 +404,10 @@ Run sequentially: code review first, then visual check.
    - **`baseBranch`**: from plan.json (code-reviewer needs it for diff range)
    - **`baselineFailures`**: from plan.json (pre-existing test failures — not regressions)
    - **`baselineBuildFailure`**: from plan.json (pre-existing build failure — not a regression)
-   - **`qaCapabilities`**: `{ "web": true, "mobile": false }` — set `web: true` when ALL of:
-     (1) `targetProject == "web-hybrid"`,
-     (2) `git diff --name-only` includes `.vue/.scss/.css` files,
-     (3) `claudeMd` documents a dev server command.
+   - **`verificationMode`**: from plan.json — code-reviewer uses this to choose Xcode MCP vs Bash for verification
+   - **`qaCapabilities`**: `{ "web": <bool>, "ios": <bool> }`
+     - Set `web: true` when ALL of: (1) `targetProject == "web-hybrid"`, (2) diff includes `.vue/.scss/.css`, (3) `claudeMd` has dev server command.
+     - Set `ios: true` when: (1) `verificationMode == "mcp"`, (2) `targetProject` contains `"ios"`.
      If Figma design exists, also pre-fetch screenshot via Figma MCP and pass as `figmaScreenshot`.
      Pass `devServerCommand`, `devUrl`, and `affectedRoutes` (inferred from diff + router).
 3. Parse results
