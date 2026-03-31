@@ -35,7 +35,9 @@ All subagents (tech-designer, design-reviewer, implementer, code-reviewer) must 
 | `NEEDS_CONTEXT` | Missing information | Parent attempts auto-supplement (read files, query APIs), then re-dispatch; if unable → ESCALATE |
 | `BLOCKED` | Unrecoverable blocker | Immediately ESCALATE to user |
 
-**Enforcement**: `validate-artifacts.sh` checks subagent output for `status` field. Missing → `exit 2`.
+**Enforcement**: `validate-artifacts.sh` checks subagent output for `status` field — must exist AND be one of the four valid enum values (`DONE`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`). Missing or invalid → `exit 2`.
+
+**NEEDS_CONTEXT re-dispatch cap**: Parent attempts auto-supplement at most **2 times** (read files listed in the NEEDS_CONTEXT response, nothing more). If subagent returns NEEDS_CONTEXT a 3rd time → auto-escalate to BLOCKED.
 
 **concerns.json schema**:
 ```json
@@ -51,6 +53,8 @@ All subagents (tech-designer, design-reviewer, implementer, code-reviewer) must 
   ]
 }
 ```
+
+**concerns.json injection into code-review**: When `concerns.json` exists, parent serializes each concern as an additional SPEC_COMPLIANCE checklist item in the code-reviewer prompt. Code-reviewer must mark each concern as `addressed` (verified fixed), `acknowledged` (verified not an issue), or `confirmed` (verified still an issue → finding). Script enforcement: if `concerns.json` exists but `code-review.json` lacks `concernsResolution` field → `exit 2`.
 
 ### 1.2 Three-Fix Architectural Escape Hatch
 
@@ -152,7 +156,9 @@ Extends v1.6.0's design-reviewer `groundingCheck` to implementer:
 - **plan.json enhancement**: each step gains `apiRefs` field — lists key APIs the step expects to use
 - Implementer verifies `apiRefs` existence at step start; missing API → `NEEDS_CONTEXT` status
 
-This is a **prompt-level constraint**, not script-enforced, because API usage is dynamic and cannot be fully enumerated ahead of time.
+This is primarily a **prompt-level constraint** because API usage is dynamic and cannot be fully enumerated ahead of time.
+
+**Script-enforced complement**: After implementation completes, `validate-code-review.sh` checks that for each `apiRefs` entry in plan.json, the code-reviewer has verified the API exists (grep confirmation in `code-review.json.groundingChecks`). Missing check → warning (not block, since implementer may have legitimately used a different API).
 
 ---
 
@@ -160,21 +166,22 @@ This is a **prompt-level constraint**, not script-enforced, because API usage is
 
 ### Priority Position
 
-Visual verification is **subordinate** to functional verification:
+Visual verification is **subordinate** to functional verification. The canonical CODE_REVIEW state machine is defined once in §2.1 (two stages: SPEC_COMPLIANCE → CODE_QUALITY). This section does NOT add stages — it defines the separate VISUAL_CHECK phase:
 
 ```
-CODE_REVIEW phase:
-  Stage 1: SPEC_COMPLIANCE (§2.1)
-  Stage 2: CODE_QUALITY (§2.1)
-  Stage 3: BDD_VERIFICATION (§4) ← functional acceptance, must pass first
-    └─ Failure → fix round, no visual check
+CODE_REVIEW phase (§2.1 — authoritative definition):
+  Stage 1: SPEC_COMPLIANCE (requirements + plan + BDD)
+  Stage 2: CODE_QUALITY (rubric scores)
+  → Both must pass for CODE_REVIEW to pass
 
-VISUAL_CHECK phase (only after CODE_REVIEW fully passes):
-  Stage 4: VISUAL_REVIEW (§3) ← visual acceptance, BDD must pass first
-    └─ Failure → fix round, UI-only fixes (no logic changes)
+VISUAL_CHECK phase (separate phase, runs only after CODE_REVIEW passes + UI changes):
+  Visual review against Figma
+  → Failure → fix round (UI-only) OR backtrack to IMPLEMENT if root cause is logic
 ```
 
-**Script enforcement**: `agent-dev-gate.sh` — entering VISUAL_CHECK validates code-review.json BDD pass status. Not passed → `exit 2`.
+**Script enforcement**: `agent-dev-gate.sh` — entering VISUAL_CHECK validates code-review.json verdict is APPROVE. Not passed → `exit 2`.
+
+**Backtrack path**: If VISUAL_CHECK implementer reports `BLOCKED` (root cause is functional logic, not styling), pipeline backtracks to IMPLEMENT phase with the visual finding as context, then re-runs CODE_REVIEW. Max 1 backtrack before ESCALATE.
 
 ### 3.1 V1: LLM Visual Review (This Release)
 
@@ -224,7 +231,9 @@ Code-reviewer receives two screenshots for structured comparison:
 - No Figma design available → `SKIPPED_NO_FIGMA`
 - Cannot start rendering environment → `SKIPPED_NO_RENDERER`
 
-### 3.3 Interactive Visual Verification
+### 3.3 Interactive Visual Verification (Advisory in V1)
+
+> **V1 scope**: Interactive visual verification is **advisory** (reported but not blocking). It becomes a hard gate in a future release once BDD Track B reliability is validated.
 
 Visual scenarios are **parasitic on BDD scenarios** — they reuse the BDD interaction path and add screenshot checkpoints:
 
@@ -253,11 +262,15 @@ Visual scenarios are **parasitic on BDD scenarios** — they reuse the BDD inter
 
 **INTERACTION_FAILURE** takes priority — if the interaction can't reach a state, visual comparison is meaningless.
 
+**V1 advisory behavior**: Interactive checkpoint results are included in `visual-review.json` but only the **single static screenshot comparison** (§3.1) drives the verdict. Interactive checkpoints are logged for data collection and future gating.
+
 ### 3.4 Visual Fix Scope Constraint
 
 Visual fix rounds are restricted to UI-only changes. Implementer prompt injection:
 
 > "This fix round is for UI styling only (CSS/layout/style attributes). If the visual deviation's root cause is a functional logic issue, report BLOCKED with explanation."
+
+**Visual fix → code review interaction**: Visual fix rounds only re-run VISUAL_CHECK, NOT full CODE_REVIEW. If the visual fix changes >50 lines of code, ESCALATE instead of re-running (large changes risk regressions that need full review). Max 2 visual fix rounds before ESCALATE.
 
 ### 3.5 V2 Roadmap (Not This Release)
 
@@ -307,10 +320,14 @@ Feature: Property Save Function
 ```
 
 **Generation rules**:
-- Each AC → at least one Scenario
+- Each **behavioral** AC → at least one Scenario (mandatory)
+- Each **non-behavioral** AC (e.g., "code follows conventions", "performance < 200ms") → no scenario required, tagged `@non-behavioral` in plan.json
 - Cover happy path + key error paths (unauthenticated, empty data, network error)
 - Language matches AC source (Chinese or English)
 - `@AC-N` tags establish scenario→AC traceability
+- Gherkin quality: every `Then` step must contain a concrete assertion (element text, URL, state change), not vague descriptions like "the feature works correctly"
+
+**AC classification**: PLAN phase classifies each AC as `behavioral` or `non-behavioral`. Script enforcement: behavioral AC without corresponding `@AC-N` scenario → `exit 2`. Non-behavioral AC without scenario → allowed (warning only).
 
 ### 4.2 Dual-Track Execution
 
@@ -321,9 +338,10 @@ Gherkin scenarios execute on two tracks, routed by step type:
 - Execution: implementer writes tests → code-reviewer runs via bash
 - Verification: test pass = scenario's Then assertion holds
 
-**Track B — LLM-as-BDD-Runner (new)**
+**Track B — LLM-as-BDD-Runner (new, ADVISORY in V1)**
 - Scope: UI interaction, page navigation, form submission, visual feedback
 - Execution: code-reviewer interprets Gherkin step-by-step via MCP tools
+- **V1: advisory only** — Track B results are reported but do NOT block APPROVE. Only Track A is a hard gate. Track B becomes blocking after a validation spike confirms >80% consistency (see §4.8).
 - Mapping:
   - `Given user is on "/path"` → `navigate_page(url)`
   - `When user clicks "X"` → `click(selector)` / Xcode tap
@@ -356,7 +374,7 @@ Gherkin scenarios execute on two tracks, routed by step type:
 ]
 ```
 
-Track values: `"mcp"` (interactive only), `"test"` (unit/integration only), `"hybrid"` (both — scenario must pass on BOTH tracks to be considered PASS; either track failing = scenario FAIL).
+Track values: `"mcp"` (interactive only — advisory in V1), `"test"` (unit/integration only — blocking), `"hybrid"` (both — Track A must pass for blocking verdict; Track B is advisory in V1).
 
 ### 4.3 BDD Verification in Code Review
 
@@ -379,27 +397,51 @@ Stage 1: SPEC_COMPLIANCE
     "total": 3,
     "passed": 2,
     "failed": 1,
+    "skipped": 0,
     "scenarios": [
-      { "id": "AC-1", "track": "mcp", "verdict": "PASS" },
-      { "id": "AC-2", "track": "mcp", "verdict": "PASS" },
+      {
+        "id": "AC-1",
+        "trackResults": {
+          "test": { "verdict": "PASS" },
+          "mcp": { "verdict": "PASS", "advisory": true }
+        },
+        "blockingVerdict": "PASS"
+      },
+      {
+        "id": "AC-2",
+        "trackResults": {
+          "mcp": { "verdict": "PASS", "advisory": true }
+        },
+        "blockingVerdict": "PASS"
+      },
       {
         "id": "AC-3",
-        "track": "mcp",
-        "verdict": "FAIL",
-        "failedStep": "Then user is redirected to login page",
-        "actual": "Error toast displayed instead of redirect",
-        "screenshot": ".pilot/screenshots/AC-3-fail.png"
+        "trackResults": {
+          "test": { "verdict": "PASS" },
+          "mcp": {
+            "verdict": "FAIL",
+            "advisory": true,
+            "failedStep": "Then user is redirected to login page",
+            "actual": "Error toast displayed instead of redirect",
+            "screenshot": ".pilot/screenshots/AC-3-fail.png"
+          }
+        },
+        "blockingVerdict": "PASS"
       }
     ]
   }
 }
 ```
 
+**Verdict logic**: `blockingVerdict` is computed from non-advisory tracks only. In V1, only Track A (`"test"`) is non-advisory. A scenario with only `"mcp"` track results has `blockingVerdict: "PASS"` by default (advisory cannot block). This schema supports future promotion of Track B to blocking by flipping `advisory: false`.
+
 ### 4.4 Script Enforcement
 
 `validate-code-review.sh` additions:
-- Verdict APPROVE but `bddResults` has any failed scenario → `exit 2`
+- Verdict APPROVE but `bddResults` has any scenario with `blockingVerdict: "FAIL"` → `exit 2`
 - `bddResults` field missing AND plan.json has `bddScenarios` → `exit 2` (cannot skip BDD)
+- Advisory Track B failures are logged but do NOT trigger `exit 2` in V1
+- If >50% of scenarios have `blockingVerdict: "SKIPPED"` (any reason) → `exit 2` (prevents silent bypass of entire BDD system)
 
 ### 4.5 BDD Failure Fix Flow
 
@@ -409,6 +451,8 @@ BDD scenario failure → fix round. Implementer receives:
 - Screenshot (if available)
 - Constraint: **"Fix functional behavior to make scenario pass. Do NOT modify the scenario."**
 
+**Scenario regeneration escape hatch**: If 3 consecutive fix rounds fail AND the implementer reports that the scenario itself is incorrect (e.g., AC was misinterpreted during Gherkin generation), the parent may regenerate `scenarios.feature` for the specific failing AC. Regeneration requires: (1) implementer explicitly states the scenario is wrong with evidence, (2) parent re-reads the original AC, (3) generates a corrected scenario. Max 1 regeneration per AC per pipeline run.
+
 ### 4.6 Precondition Management
 
 Interactive BDD requires environment preparation. PLAN phase `preconditions` field guides code-reviewer:
@@ -417,9 +461,30 @@ Interactive BDD requires environment preparation. PLAN phase `preconditions` fie
 - `loginRequired: true` → execute login flow via MCP (test credentials from project config)
 - `testData` → describes required data state (code-reviewer judges if seeding is needed)
 
-Unmet precondition → scenario marked `SKIPPED_PRECONDITION`, does not affect verdict but reason is recorded.
+**Precondition failure handling** (not all skips are equal):
+- `devServer` unreachable → all MCP-track scenarios marked `SKIPPED_MCP_UNAVAILABLE` (infrastructure failure, distinct from precondition)
+- `loginRequired` login flow fails → that scenario marked `FAIL` (not SKIPPED — login is part of the test)
+- `testData` cannot be satisfied → scenario marked `SKIPPED_PRECONDITION` with reason
 
-### 4.7 Medium-Term Roadmap (Not This Release)
+**Skip thresholds**: If >50% of scenarios are SKIPPED (any reason), the BDD gate does NOT auto-pass. Instead → `exit 2` with message requiring human acknowledgment or infrastructure fix.
+
+### 4.8 BDD Spike Requirement (Phase 2 Pre-Gate)
+
+Before committing to Phase 2 implementation, run a **time-boxed validation spike** (1-2 days):
+
+1. Manually write 5 Gherkin scenarios for an existing HouseSigma feature
+2. Have the code-reviewer LLM execute them via Chrome DevTools MCP
+3. Measure across 3 runs of each scenario:
+   - Pass/fail consistency (target: >80%)
+   - Time per scenario
+   - False positive and false negative rates
+
+**Decision gate**:
+- Consistency ≥80% → proceed with Track B as advisory, plan promotion to blocking
+- Consistency 50-79% → proceed with Track B as advisory only, defer blocking promotion
+- Consistency <50% → defer Track B entirely, rely on Track A + manual QA checklist
+
+### 4.9 Medium-Term Roadmap (Not This Release)
 
 - **playwright-bdd integration**: web projects can optionally have implementer generate `.feature` + step definitions as persistent regression tests (enters CI, not just pipeline verification)
 - **XCUITest BDD**: iOS projects translate Gherkin scenarios to XCUITest methods, executed via Xcode MCP
@@ -487,6 +552,8 @@ Each plan.json step gains a `posture` field:
 
 `characterization-first` is new — for bugfix and refactoring scenarios. Write tests to lock current behavior first, then modify implementation, ensuring only intended behavior changes.
 
+**characterization-first expected-change rule**: Steps with this posture must explicitly list which characterization tests are **expected to change** (because we are intentionally fixing the behavior they describe). Only those specific tests may break after implementation. Any other characterization test breaking = unintended regression = fail.
+
 ### 5.4 Plan ↔ BDD Cross-Reference
 
 plan.json and `scenarios.feature` are linked via `acRefs`:
@@ -495,7 +562,9 @@ plan.json and `scenarios.feature` are linked via `acRefs`:
 plan step → acRefs → AC → @AC-N tag → Gherkin scenario
 ```
 
-PLAN phase generates both simultaneously. `validate-plan.sh` cross-check: plan has acRef but `scenarios.feature` lacks corresponding `@AC-N` → warning (not block — some ACs are non-behavioral, e.g., "code follows conventions").
+PLAN phase generates both simultaneously. `validate-plan.sh` cross-check:
+- Behavioral AC (per §4.1 classification) without corresponding `@AC-N` in scenarios.feature → `exit 2` (block)
+- Non-behavioral AC without scenario → warning only
 
 ---
 
@@ -621,63 +690,71 @@ Updated pipeline phase detail:
 ```
 FETCH → RESOLVE → [DESIGN → REVIEW →] PLAN → IMPLEMENT → CODE_REVIEW → [VISUAL_CHECK →] PR
 
-CODE_REVIEW internals:
+CODE_REVIEW internals (canonical definition, §2.1):
   Stage 1: SPEC_COMPLIANCE
-    ├── REQUIREMENTS_COVERAGE
-    ├── PLAN_COVERAGE
-    └── BDD_VERIFICATION (§4)
+    ├── REQUIREMENTS_COVERAGE (every AC implemented?)
+    ├── PLAN_COVERAGE (every plan step completed?)
+    ├── BDD_VERIFICATION (§4, Track A = blocking, Track B = advisory in V1)
+    └── CONCERNS_RESOLUTION (if concerns.json exists)
   Stage 2: CODE_QUALITY
     ├── Correctness / Convention / Regression / Performance (rubric)
-    └── Verification Iron Law check
+    └── Verification Iron Law check (testRunOutput required)
 
-VISUAL_CHECK internals (only if CODE_REVIEW passes + UI changes):
-  ├── Replay BDD interaction steps via MCP
-  ├── Screenshot at visual checkpoints
-  └── Compare against Figma node screenshots
+VISUAL_CHECK internals (separate phase, only if CODE_REVIEW passes + UI changes):
+  ├── Static screenshot comparison against Figma (§3.1, blocking)
+  ├── Interactive checkpoint screenshots (§3.3, advisory in V1)
+  └── If BLOCKED with logic root cause → backtrack to IMPLEMENT (max 1)
 ```
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Fault Tolerance + Review Hardening)
-- §1.1 Four-status subagent reporting protocol
+### Phase 1: Foundation (Fault Tolerance + Review Hardening + Infrastructure)
+- §1.1 Four-status subagent reporting protocol (with enum validation, NEEDS_CONTEXT cap, concerns injection)
 - §1.2 Three-fix architectural escape hatch
+- §1.3 Compaction recovery enhancement
+- §1.4 Subagent timeout protection
 - §2.1 Two-stage review (spec compliance → code quality)
 - §2.2 Anti-rationalization tables
 - §2.3 Verification iron law
 - §5.2 No placeholders rule
-- §6.3 AI-friendly error messages
-
-**Why first**: These are prompt + script changes to existing agents. Low risk, immediately improve quality.
-
-### Phase 2: BDD Behavioral Verification
-- §4.1 Gherkin generation in PLAN phase
-- §4.2 Dual-track execution (test + MCP)
-- §4.3 BDD verification in code-review
-- §4.4 Script enforcement for BDD results
-- §4.5 BDD failure fix flow
-- §4.6 Precondition management
-- §5.3 Execution posture
-- §5.4 Plan ↔ BDD cross-reference
-
-**Why second**: BDD is the core behavioral verification layer. Depends on Phase 1's two-stage review structure.
-
-### Phase 3: Visual Verification + Universality
-- §3.1 LLM visual review (V1)
-- §3.2 Trigger condition expansion
-- §3.3 Interactive visual verification (parasitic on BDD)
-- §3.4 Visual fix scope constraint
-- §1.3 Compaction recovery enhancement
-- §1.4 Subagent timeout protection
-- §5.1 Multi-dimension reference framework
 - §6.1 Framework-agnostic command discovery
 - §6.2 Generalized testInfra
-- §6.4 Project onboarding simplification
-- §6.5 Reduce HouseSigma hardcoding
+- §6.3 AI-friendly error messages
+- §6.4 Project onboarding simplification (project-capabilities.json)
+
+**Why first**: These are prompt + script changes to existing agents, plus the infrastructure that BDD (Phase 2) depends on. Compaction recovery and timeout protection must exist before adding BDD's longer-running MCP sessions. Command discovery and testInfra must exist before BDD can route scenarios to the correct test runner.
+
+### Phase 1.5: BDD Validation Spike (§4.8)
+- Write 5 Gherkin scenarios for an existing feature
+- Execute via Chrome DevTools MCP, measure consistency across 3 runs
+- Decision gate: proceed with Track B advisory / defer Track B / adjust approach
+
+**Why before Phase 2**: Gates the BDD investment. If LLM-as-BDD-Runner consistency is <50%, Phase 2 scope shrinks significantly (Track A only).
+
+### Phase 2: BDD Behavioral Verification
+- §4.1 Gherkin generation in PLAN phase (with AC classification)
+- §4.2 Dual-track execution (Track A blocking, Track B advisory)
+- §4.3 BDD verification in code-review
+- §4.4 Script enforcement for BDD results (with skip threshold)
+- §4.5 BDD failure fix flow (with scenario regeneration escape hatch)
+- §4.6 Precondition management (with failure distinction and skip thresholds)
+- §5.3 Execution posture (with characterization-first expected-change rule)
+- §5.4 Plan ↔ BDD cross-reference (behavioral AC = block, non-behavioral = warning)
 - §2.4 Grounding enhancement
 
-**Why third**: Visual verification depends on BDD interaction paths (§3.3). Universality items are independent but lower priority than correctness.
+**Why second**: BDD is the core behavioral verification layer. Depends on Phase 1's two-stage review structure and infrastructure.
+
+### Phase 3: Visual Verification + Universality
+- §3.1 LLM visual review (V1, static screenshot comparison)
+- §3.2 Trigger condition expansion
+- §3.3 Interactive visual verification (advisory, parasitic on BDD)
+- §3.4 Visual fix scope constraint (with backtrack path and loop prevention)
+- §5.1 Multi-dimension reference framework
+- §6.5 Reduce HouseSigma hardcoding
+
+**Why third**: Visual verification depends on BDD interaction paths (§3.3). §6.5 is an audit pass that benefits from all other changes being in place.
 
 ---
 
