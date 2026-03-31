@@ -27,6 +27,20 @@ If CWD is a monorepo root with multiple sub-projects:
 - projectDir = `<CWD>/<sub-project>` — code operations use absolute paths
 - `.pilot/` stays in CWD (monorepo root)
 
+### Compaction Recovery Instructions (§1.3)
+
+Each phase has specific resume instructions (used by `post-compact-resume.sh`):
+
+| Phase | Key Artifact | Resume Instruction |
+|-------|-------------|-------------------|
+| DESIGN | design.md | Re-read design.md, continue from where design left off. Do NOT restart. |
+| REVIEW | review.json | Read review verdict. If REVISE, prepare next design iteration. If APPROVE, proceed to PLAN. |
+| IMPLEMENT | plan.json + step index | Read plan.json, check STEP_STATUSES, resume from first incomplete step. Reconstruct anchor set via `git diff --name-only $(git merge-base origin/<baseBranch> HEAD)..HEAD`. |
+| CODE_REVIEW | code-review.json | Read verdict + reviewIteration. If FIX_REQUIRED, invoke implementer fix mode. |
+| VISUAL_CHECK | visual-review.json | Read verdict. If MAJOR_DEVIATION, invoke implementer UI fix mode. |
+
+**Priority on compaction**: Preserve (1) state.json, (2) current phase key artifact, (3) plan.json step statuses. Everything else can be re-read from `.pilot/` directory.
+
 ## Telemetry
 
 Every pipeline run (COMPLETED or FAILED) writes a row to `~/.pilot-telemetry.tsv`.
@@ -123,6 +137,45 @@ Determine which project(s) to work in and build the project queue.
    - **Complex** (multi-project, new architecture, API changes): full pipeline
    - Heuristics: count ACs (≤3 = likely simple), check if affectedProjects > 1 (= standard/complex), check if requirement mentions "new page/screen/API" (= standard+)
    - Record `complexity` in state.json
+
+#### Project Capability Scan (§6.4)
+
+After determining projectDir, scan the project and write `.pilot/project-capabilities.json`:
+
+```json
+{
+  "stack": "<detected from package.json/Podfile/build.gradle>",
+  "buildSystem": "<vite|webpack|xcodebuild|gradle|make>",
+  "testInfra": {
+    "framework": "<vitest|jest|xctest|junit|phpunit>",
+    "runCommand": "<full CLI command>",
+    "configFile": "<path or null>",
+    "testPattern": "<glob>",
+    "detected": true
+  },
+  "hasDevServer": true,
+  "devServerCommand": "<command or null>",
+  "hasFigmaDesigns": false,
+  "hasExistingTests": true,
+  "conventionFiles": [],
+  "qaCapabilities": {
+    "web": { "chromeDevTools": false, "devServer": false },
+    "ios": { "xcodeMcp": false, "simulator": false }
+  }
+}
+```
+
+**Discovery protocol (§6.1 — three levels):**
+1. **Level 1 — CLAUDE.md explicit**: Read target project's CLAUDE.md for `buildCommand`, `testCommand`, `lintCommand`, `devServerCommand`. If found, use directly — skip probing.
+2. **Level 2 — Config file probing** (when CLAUDE.md is missing or incomplete):
+   - `package.json` → `scripts.test`, `scripts.lint`, `scripts.build`, `scripts.dev`
+   - `Makefile` → `make test`, `make lint`, `make build`
+   - `build.gradle` / `build.gradle.kts` → `./gradlew test`, `./gradlew lint`
+   - `.xcodeproj` / `.xcworkspace` → `xcodebuild test` (or Xcode MCP)
+   - `composer.json` → `composer test`
+3. **Level 3 — Fallback**: Mark commands as `UNKNOWN`. Implementer discovers in first step.
+
+Write results to `.pilot/project-capabilities.json`. All subsequent phases read this file.
 
 6. Verify clean working tree: `git -C <projectDir> status --porcelain`
    - If dirty → warn, ask to stash or continue
@@ -223,6 +276,17 @@ YOU do this directly. Code paths use projectDir, artifacts stay in `.pilot/`.
    e. Record all validated commands + baseline failures list — persist in plan.json:
       `verificationCommand` (build/typecheck), `testInfra` (test), `lintCommand` (lint, if separate), `baselineFailures`
       **Validation**: before persisting, verify each command is runnable via `bash -c "<command>"` dry-run. If a command is an MCP tool name or IDE action (not bash-executable), replace it with the CLI equivalent.
+
+#### Health Check Enhancement (§6.1, §6.2)
+
+1. Read `.pilot/project-capabilities.json` (created in RESOLVE)
+2. Use `testInfra.runCommand` from capabilities (not hardcoded framework names)
+3. Validate commands by dry-run where possible
+4. Record validated commands in `plan.json`:
+   - `verificationCommand`: from capabilities or CLAUDE.md
+   - `lintCommand`: from capabilities or CLAUDE.md
+   - `testInfra`: structured object from capabilities (§6.2)
+
 4. **Detect test infrastructure**:
    - Check if project has a test framework (e.g., `vitest` in package.json, `junit` in build.gradle, `XCTest` in Xcode)
    - Also check **Makefile** for `test`/`build` targets (e.g., `make test`, `make build`)
@@ -448,6 +512,24 @@ Run sequentially: code review first, then visual check.
    - If tech-design.md exists: include relevant `designSection` content per issue
    The implementer reconstructs anchor set from git history (same as its Recovery flow),
    addresses issues by severity, and commits a fix. See implementer.md "Fix Mode" for details.
+
+#### Three-Fix Architectural Escape Hatch (§1.2)
+
+If code-review fix round 3 verdict is still FIX_REQUIRED:
+
+1. **Do NOT retry.** Collect all 3 rounds of:
+   - Implementer diffs
+   - Reviewer comments/findings
+2. Generate `.pilot/architectural-concern.md`:
+   - Pattern analysis: which issues recurred across all 3 rounds?
+   - Root cause hypothesis: is this a design-level flaw, not an implementation bug?
+   - Suggested design revision or alternative approach
+3. Set `state.json.currentPhase → "ESCALATED"`
+4. Set `state.json.metrics.escalationCount += 1`
+5. Present the architectural concern analysis to the user
+
+**This also applies to DESIGN/REVIEW**: If design-reviewer returns REVISE 3 times on the same design, auto-escalate with the accumulated feedback.
+
 6. **VISUAL_CHECK gate** — check ALL conditions:
    - `requirement.json` has `figmaDesign` that is NOT null
    - At least one plan step has `uiChange: true`
