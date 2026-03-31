@@ -73,6 +73,17 @@ For every component/function you reference, include a verification note:
 "NativeOpenUrl (LSP verified: call<T>(uri: string, params?: T): string | null | undefined)"
 "AppSwiper (READ verified: src/.../AppSwiper.vue — props={items, modules}, slot provides {item})"
 
+## Completion Status (MANDATORY)
+
+Your final output MUST include a `status` field with one of these values:
+
+| Status | When to use |
+|--------|------------|
+| `DONE` | Task completed successfully |
+| `DONE_WITH_CONCERNS` | Completed but you have doubts — include `concerns[]` with `{step, description, severity, suggestedCheck}` |
+| `NEEDS_CONTEXT` | Cannot proceed — include `requestedContext[]` with `{type: "file"|"grep", path/pattern, scope}` and `retryHint`. Max 2 retries before auto-escalation. |
+| `BLOCKED` | Unrecoverable issue — include `blockReason` explaining what went wrong |
+
 ## Output
 
 Return a complete tech design as markdown with ALL of these sections:

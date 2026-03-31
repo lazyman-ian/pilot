@@ -119,6 +119,17 @@ RUBRIC_SCORES:
 - Regression: 5/10 (insufficient test coverage for new code)
 ```
 
+## Completion Status (MANDATORY)
+
+Your final output MUST include a `status` field with one of these values:
+
+| Status | When to use |
+|--------|------------|
+| `DONE` | Task completed successfully |
+| `DONE_WITH_CONCERNS` | Completed but you have doubts — include `concerns[]` with `{step, description, severity, suggestedCheck}` |
+| `NEEDS_CONTEXT` | Cannot proceed — include `requestedContext[]` with `{type: "file"|"grep", path/pattern, scope}` and `retryHint`. Max 2 retries before auto-escalation. |
+| `BLOCKED` | Unrecoverable issue — include `blockReason` explaining what went wrong |
+
 ## Output Format (MUST follow exactly)
 
 Your output has TWO parts: structured text (for parent to parse) and JSON (for script validation).
@@ -193,6 +204,10 @@ After the structured text, output a JSON block that the parent will write to `.p
     {"severity": "MAJOR", "file": "path", "line": 42, "description": "...", "fix": "..."}
   ],
   "requirementsCoverage": {"covered": ["AC-1", "AC-2"], "missing": ["AC-3"]},
+  "verificationSummary": {"type": "test|build|fileCheck", "command": "...", "output": "...", "exitCode": 0},
+  "planCoverage": {"total": 5, "completed": 5, "removed": 0, "steps": [{"step": 1, "status": "implemented"}, {"step": 2, "status": "implemented"}]},
+  "concernsResolution": [{"concernIndex": 0, "resolution": "addressed|acknowledged|confirmed", "evidence": "..."}],
+  "groundingChecks": [{"apiRef": "...", "verified": true, "method": "grep", "evidence": "..."}],
   "summary": "..."
 }
 ```
