@@ -21,6 +21,9 @@ case "$FILE" in
     [ -z "$SESSION_ID" ] && exit 0
     TMP="${FILE}.tmp.$$"
     jq --arg sid "$SESSION_ID" '.sessionId = $sid' "$FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$FILE"
+    # §1.4 Add updatedAt timestamp for timeout detection
+    UPDATED=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.updatedAt = $ts' "$FILE")
+    echo "$UPDATED" > "$FILE"
     if ! jq -e '.phase and .pipelineId' "$FILE" >/dev/null 2>&1; then
       echo "WARNING: state.json missing required fields." >&2
     fi
@@ -34,6 +37,20 @@ case "$FILE" in
     ;;
   */.pilot/review.json)
     echo "$INPUT" | bash "$SCRIPT_DIR/validate-review.sh"
+    ;;
+  *concerns.json)
+    source "$(dirname "$0")/lib/error-fmt.sh"
+    if ! jq -e '.concerns | type == "array"' "$FILE" >/dev/null 2>&1; then
+      pilot_blocked \
+        "concerns.json missing concerns array" \
+        "concerns.json must contain a 'concerns' array (§1.1)" \
+        "Ensure format: {\"phase\":\"...\",\"concerns\":[...]}" \
+        "$FILE"
+      exit 2
+    fi
+    ;;
+  *visual-review.json)
+    exec "$(dirname "$0")/validate-visual-review.sh" "$FILE"
     ;;
   *)
     exit 0
