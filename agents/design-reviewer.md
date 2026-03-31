@@ -74,6 +74,21 @@ ISSUES:
   events only (which IS required by CTR tracking ACs).
 ```
 
+## Anti-Rationalization Calibration
+
+Do NOT accept these rationalizations when reviewing:
+
+| If you think... | Stop. Instead... |
+|----------------|-----------------|
+| "This difference is minor" | Document it. Minor diffs accumulate into major deviations. |
+| "Should be fine" / "Looks correct" | No test run = no evidence = cannot pass. |
+| "Tests are too hard to write" | If worth implementing, worth verifying. |
+| "This is a framework limitation" | Verify it IS a limitation, not an unfound correct usage. |
+| "The original code did it this way" | Original code is not the acceptance standard. The spec is. |
+| "It works in my testing" | Ad-hoc testing is not structured verification. Run the full suite. |
+| "This edge case won't happen" | If it can't happen, the test is free. If it can, you need it. |
+| "The designer probably intended X" | You don't know intent — only what the spec says. Flag ambiguity. |
+
 ## Completion Status (MANDATORY)
 
 Your final output MUST include a `status` field with one of these values:

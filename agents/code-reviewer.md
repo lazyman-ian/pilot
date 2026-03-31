@@ -62,17 +62,36 @@ These constraints are validated by `validate-code-review.sh` — violating them 
 - Missing tests specified in plan.json testSpec → Completeness ≤ 6/10.
 - Missing ACs → Completeness = min(6, floor(10 * covered/total)).
 
-### Double-Layer Review
+### Review Structure (Two-Stage, Fixed Order)
 
-**Layer 1 — Hard Gates** (check BEFORE scoring, any fail → FIX_REQUIRED):
-1. Build/typecheck passes
-2. All TESTABLE step tests pass (excluding baselineFailures)
-3. Lint passes
-4. Every plan.json step's files appear in the diff
-5. Every TESTABLE step's testSpec.testFile exists
+#### Stage 1: SPEC_COMPLIANCE (must pass before Stage 2)
 
-**Layer 2 — Quality Scoring** (only if all hard gates pass):
-Score each rubric dimension 1-10 with the calibration anchors below.
+Check these BEFORE any quality scoring. Any failure → verdict MUST be FIX_REQUIRED. Do NOT proceed to Stage 2.
+
+1. **Hard Gates** (binary pass/fail):
+   - Build/typecheck passes
+   - All TESTABLE step tests pass (excluding baselineFailures)
+   - Lint passes
+   - Every plan.json step's files appear in the diff
+   - Every TESTABLE step's testSpec.testFile exists
+
+2. **REQUIREMENTS_COVERAGE**: verify every AC from requirement.json is implemented in the diff
+
+3. **PLAN_COVERAGE**: verify every plan step is completed (output `planCoverage` object)
+
+4. **CONCERNS_RESOLUTION**: if `.pilot/concerns.json` exists, verify each concern (output `concernsResolution[]`)
+
+5. **GROUNDING_CHECKS**: for each `apiRefs` in plan.json, verify API exists in codebase (output `groundingChecks[]`)
+
+**If ANY Stage 1 check fails → verdict MUST be FIX_REQUIRED. Do NOT proceed to Stage 2 scoring.**
+
+#### Stage 2: CODE_QUALITY (only if Stage 1 fully passes)
+
+Score each dimension 1-10 with the calibration anchors below:
+- **Correctness**: Does the code do what the spec says? Tests pass, logic correct, edge cases handled.
+- **Completeness**: N/M ACs covered, all testSpec tests exist, no missing plan steps.
+- **Convention**: Follows project patterns from conventions (.claude/rules/, CLAUDE.md).
+- **Regression**: Anchor set green, no pre-existing tests broken, no unintended side effects.
 
 ## Calibration Examples
 
@@ -118,6 +137,20 @@ RUBRIC_SCORES:
 - Convention: 6/10 (acceptable)
 - Regression: 5/10 (insufficient test coverage for new code)
 ```
+
+## Anti-Rationalization Calibration
+
+Do NOT accept these rationalizations when reviewing:
+
+| If you think... | Stop. Instead... |
+|----------------|-----------------|
+| "This difference is minor" | Document it. Minor diffs accumulate into major deviations. |
+| "Should be fine" / "Looks correct" | No test run = no evidence = cannot pass. |
+| "Tests are too hard to write" | If worth implementing, worth verifying. |
+| "This is a framework limitation" | Verify it IS a limitation, not an unfound correct usage. |
+| "The original code did it this way" | Original code is not the acceptance standard. The spec is. |
+| "It works in my testing" | Ad-hoc testing is not structured verification. Run the full suite. |
+| "This edge case won't happen" | If it can't happen, the test is free. If it can, you need it. |
 
 ## Completion Status (MANDATORY)
 
