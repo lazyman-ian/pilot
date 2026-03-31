@@ -165,7 +165,8 @@ if [ "$VERDICT" = "APPROVE" ]; then
   PILOT_DIR=$(dirname "$FILE")
   PLAN_FILE="$PILOT_DIR/plan.json"
   if [ -f "$PLAN_FILE" ]; then
-    TEST_FIRST_COUNT=$(jq '[.steps // [] | .[] | select(.posture == "test-first")] | length' "$PLAN_FILE" 2>/dev/null)
+    # Check for test-requiring steps using BOTH new posture and legacy testability fields
+    TEST_FIRST_COUNT=$(jq '[.steps[]? | select(.posture == "test-first" or .testability == "TESTABLE")] | length' "$PLAN_FILE" 2>/dev/null)
     if [ "${TEST_FIRST_COUNT:-0}" -gt 0 ] && [ "$VS_TYPE" != "test" ]; then
       pilot_blocked \
         "verificationSummary.type is \"$VS_TYPE\" but plan has $TEST_FIRST_COUNT test-first step(s)" \
@@ -183,13 +184,17 @@ CONCERNS_FILE="$PILOT_DIR/concerns.json"
 if [ -f "$CONCERNS_FILE" ] && [ "$VERDICT" = "APPROVE" ]; then
   CONCERNS_COUNT=$(jq '.concerns | length' "$CONCERNS_FILE" 2>/dev/null || echo 0)
   if [ "${CONCERNS_COUNT:-0}" -gt 0 ]; then
-    # Check unique concernIndex coverage — each concern must have exactly one resolution
-    UNIQUE_INDICES=$(jq '[.concernsResolution[]?.concernIndex] | unique | length' "$FILE" 2>/dev/null || echo 0)
-    if [ "${UNIQUE_INDICES:-0}" -lt "${CONCERNS_COUNT:-0}" ]; then
+    # Verify every concern index [0..N-1] has a resolution
+    MISSING_INDICES=$(jq --argjson count "$CONCERNS_COUNT" '
+      [range($count)] - [.concernsResolution[]?.concernIndex | select(. != null)] |
+      if length > 0 then map("concern \(.)") | join(", ") else empty end
+    ' "$FILE" 2>/dev/null)
+
+    if [ -n "$MISSING_INDICES" ]; then
       pilot_blocked \
-        "APPROVE with incomplete concernsResolution ($UNIQUE_INDICES unique indices / $CONCERNS_COUNT concerns)" \
-        "Every concern must have a unique concernIndex in concernsResolution (§1.1)" \
-        "Ensure each concern has exactly one resolution entry with its concernIndex" \
+        "APPROVE with unresolved concerns: $MISSING_INDICES" \
+        "Every concern (index 0 to $((CONCERNS_COUNT-1))) must have a resolution entry (§1.1)" \
+        "Add concernsResolution entries for missing indices" \
         ".pilot/code-review.json → concernsResolution[].concernIndex" >&2
       exit 2
     fi

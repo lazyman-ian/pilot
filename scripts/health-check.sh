@@ -36,7 +36,8 @@ if [[ -n "$UPDATED_AT" ]]; then
     _ts="${UPDATED_AT%.*}"          # drop fractional seconds if present
     _ts="${_ts%Z}"                  # drop trailing Z
     _ts="${_ts%+??:??}"             # drop +HH:MM offset if present
-    FILE_EPOCH=$(date -jf "%Y-%m-%dT%H:%M:%S" "$_ts" +%s 2>/dev/null)
+    # macOS: parse as UTC by using -u flag
+    FILE_EPOCH=$(date -u -jf "%Y-%m-%dT%H:%M:%S" "$_ts" +%s 2>/dev/null)
   else
     # Linux: date -d understands ISO-8601 natively
     FILE_EPOCH=$(date -d "$UPDATED_AT" +%s 2>/dev/null)
@@ -52,7 +53,7 @@ if [[ -z "$FILE_EPOCH" ]]; then
   fi
 fi
 
-NOW_EPOCH=$(date +%s)
+NOW_EPOCH=$(date -u +%s)
 STALE_SEC=$(( NOW_EPOCH - FILE_EPOCH ))
 STALE_MIN=$(( STALE_SEC / 60 ))
 

@@ -83,7 +83,7 @@ Check these BEFORE any quality scoring. Any failure → verdict MUST be FIX_REQU
 
 5. **GROUNDING_CHECKS**: for each `apiRefs` in plan.json, verify API exists in codebase (output `groundingChecks[]`)
 
-**If ANY Stage 1 check fails → verdict MUST be FIX_REQUIRED. Do NOT proceed to Stage 2 scoring.**
+**If ANY Stage 1 check fails → verdict MUST be FIX_REQUIRED. Still provide rubricScores (set all dimensions to 0 if Stage 1 was not passed — the scores are meaningless but required by the validation schema).**
 
 #### Stage 2: CODE_QUALITY (only if Stage 1 fully passes)
 
