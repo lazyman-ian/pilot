@@ -75,6 +75,10 @@ improves code quality during implementation (e.g., auto lint-fix, coding convent
 5. **PR is ALWAYS draft**: Never merge.
 6. **After compaction**: Read `state.json` + `plan.json` to resume. Do NOT ask the user.
 7. **NEVER STOP TO ASK THE USER** unless review ESCALATES or an unrecoverable error occurs. Do NOT ask "is this correct?", "should I continue?", "does this look right?". Just log a summary and proceed to the next phase in the SAME turn. The pipeline is fully autonomous.
+8. **Four-Status Protocol**: Every subagent output MUST include `status` field: `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Parent validates enum value (script-enforced). `NEEDS_CONTEXT` max 2 retries before auto-escalation to BLOCKED.
+9. **Three-Fix Limit**: After 3 FIX_REQUIRED rounds in CODE_REVIEW (or 3 REVISE in DESIGN/REVIEW), auto-escalate with `.pilot/architectural-concern.md` analysis. DO NOT retry a 4th time.
+10. **Verification Iron Law**: No completion claim without verification evidence. Implementer: `verificationEvidence` per step. Code-reviewer: `verificationSummary` in APPROVE output. Design-reviewer: AC coverage points in APPROVE.
+11. **No Placeholders**: plan.json step descriptions must not contain TBD/TODO/待定/后续补充. Script-enforced via `validate-plan.sh` (exit 2 on violation). Step `files` arrays must be non-empty for non-scaffolding steps.
 
 ## File Persistence Protocol
 
@@ -142,12 +146,17 @@ After each subagent returns, YOU write its output to `.pilot/` immediately.
 
   "metrics": {
     "interventions": 0,
-    "completedAt": null
+    "completedAt": null,
+    "escalationCount": 0
   },
   "createdAt": "<ISO8601>",
   "updatedAt": "<ISO8601>"
 }
 ```
+
+Notable fields:
+- `updatedAt`: ISO 8601 UTC timestamp — auto-injected by `validate-artifacts.sh` on every state.json write. Used by `health-check.sh` for staleness detection (§1.4).
+- `metrics.escalationCount`: Number of times pipeline auto-escalated (three-fix limit). Tracked in telemetry.
 
 ## Resolved Plugin Paths
 
