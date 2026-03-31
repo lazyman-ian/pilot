@@ -37,7 +37,21 @@ All subagents (tech-designer, design-reviewer, implementer, code-reviewer) must 
 
 **Enforcement**: `validate-artifacts.sh` checks subagent output for `status` field — must exist AND be one of the four valid enum values (`DONE`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`). Missing or invalid → `exit 2`.
 
-**NEEDS_CONTEXT re-dispatch cap**: Parent attempts auto-supplement at most **2 times** (read files listed in the NEEDS_CONTEXT response, nothing more). If subagent returns NEEDS_CONTEXT a 3rd time → auto-escalate to BLOCKED.
+**NEEDS_CONTEXT payload**: When status is `NEEDS_CONTEXT`, subagent must also provide:
+```json
+{
+  "status": "NEEDS_CONTEXT",
+  "reason": "Cannot find the API endpoint for saving favorites",
+  "requestedContext": [
+    { "type": "file", "path": "src/api/favorites.ts" },
+    { "type": "grep", "pattern": "saveFavorite", "scope": "src/" }
+  ],
+  "retryHint": "Provide the favorites API module path"
+}
+```
+Script enforcement: `NEEDS_CONTEXT` without `requestedContext` array → `exit 2`.
+
+**NEEDS_CONTEXT re-dispatch cap**: Parent executes only the `requestedContext` actions (read files, grep), injects results, and re-dispatches. Max **2 re-dispatches**. 3rd NEEDS_CONTEXT → auto-escalate to BLOCKED.
 
 **concerns.json schema**:
 ```json
@@ -54,7 +68,31 @@ All subagents (tech-designer, design-reviewer, implementer, code-reviewer) must 
 }
 ```
 
-**concerns.json injection into code-review**: When `concerns.json` exists, parent serializes each concern as an additional SPEC_COMPLIANCE checklist item in the code-reviewer prompt. Code-reviewer must mark each concern as `addressed` (verified fixed), `acknowledged` (verified not an issue), or `confirmed` (verified still an issue → finding). Script enforcement: if `concerns.json` exists but `code-review.json` lacks `concernsResolution` field → `exit 2`.
+**concerns.json injection into code-review**: When `concerns.json` exists, parent serializes each concern as an additional SPEC_COMPLIANCE checklist item in the code-reviewer prompt. Code-reviewer must resolve every concern:
+
+```json
+// code-review.json
+"concernsResolution": [
+  {
+    "concernIndex": 0,
+    "resolution": "addressed",
+    "evidence": "Replaced deprecated API with v2 endpoint in commit abc123"
+  },
+  {
+    "concernIndex": 1,
+    "resolution": "confirmed",
+    "severity": "medium",
+    "finding": "Still using deprecated pattern — added to FIX_REQUIRED findings"
+  }
+]
+```
+
+Resolution values: `addressed` (verified fixed), `acknowledged` (verified not an issue, with justification), `confirmed` (verified still an issue → becomes a finding).
+
+**Script enforcement**:
+- `concerns.json` exists but `concernsResolution` missing → `exit 2`
+- `concernsResolution` length < `concerns` length → `exit 2` (must cover every concern)
+- Any concern with `resolution: "confirmed"` AND verdict is APPROVE → `exit 2` (unresolved confirmed concern blocks approval)
 
 ### 1.2 Three-Fix Architectural Escape Hatch
 
@@ -117,7 +155,23 @@ Stage 2: CODE_QUALITY (only meaningful if Stage 1 passes)
   └── Performance (0-10)
 ```
 
-**Script enforcement**: `validate-code-review.sh` — REQUIREMENTS_COVERAGE < 100% AND verdict APPROVE → `exit 2`.
+**Script enforcement**: `validate-code-review.sh`:
+- REQUIREMENTS_COVERAGE < 100% AND verdict APPROVE → `exit 2`
+- PLAN_COVERAGE < 100% AND verdict APPROVE → `exit 2` (steps explicitly removed must have `removedReason` in `planCoverage`)
+
+**PLAN_COVERAGE schema** in `code-review.json`:
+```json
+"planCoverage": {
+  "total": 5,
+  "completed": 5,
+  "removed": 0,
+  "steps": [
+    { "stepIndex": 0, "status": "completed" },
+    { "stepIndex": 1, "status": "completed" },
+    { "stepIndex": 2, "status": "removed", "removedReason": "Merged into step 1 during implementation" }
+  ]
+}
+```
 
 ### 2.2 Anti-Rationalization Tables
 
@@ -143,10 +197,19 @@ Implementation per subagent:
   - TESTABLE steps: test command output (pass/fail count)
   - VERIFY_ONLY steps: build command output (success/failure)
   - scaffold steps: file existence check output
-- **code-reviewer**: APPROVE verdict must include `testRunOutput` field (last test run summary)
+- **code-reviewer**: APPROVE verdict must include `verificationSummary` field — a generalized evidence object:
+  ```json
+  "verificationSummary": {
+    "type": "test",
+    "command": "npx vitest run",
+    "output": "Tests: 12 passed, 0 failed",
+    "exitCode": 0
+  }
+  ```
+  Valid types: `"test"` (test suite ran), `"build"` (build-only verification for scaffold/build-verify steps), `"fileCheck"` (file existence for scaffold steps). Type must match the plan's step postures — if any step has `posture: "test-first"`, type must be `"test"`.
 - **design-reviewer**: APPROVE verdict must reference each AC's design coverage point
 
-**Script enforcement**: `validate-code-review.sh` — APPROVE + empty `testRunOutput` → `exit 2`.
+**Script enforcement**: `validate-code-review.sh` — APPROVE + empty/missing `verificationSummary` → `exit 2`. If plan has test-first steps but `verificationSummary.type` is not `"test"` → `exit 2`.
 
 ### 2.4 Grounding Enhancement (Anti-Hallucination)
 
@@ -158,7 +221,27 @@ Extends v1.6.0's design-reviewer `groundingCheck` to implementer:
 
 This is primarily a **prompt-level constraint** because API usage is dynamic and cannot be fully enumerated ahead of time.
 
-**Script-enforced complement**: After implementation completes, `validate-code-review.sh` checks that for each `apiRefs` entry in plan.json, the code-reviewer has verified the API exists (grep confirmation in `code-review.json.groundingChecks`). Missing check → warning (not block, since implementer may have legitimately used a different API).
+**Script-enforced complement**: After implementation completes, `validate-code-review.sh` checks that for each `apiRefs` entry in plan.json, the code-reviewer has verified the API exists.
+
+**groundingChecks schema** in `code-review.json`:
+```json
+"groundingChecks": [
+  {
+    "apiRef": "POST /api/v2/favorites",
+    "verified": true,
+    "method": "grep",
+    "evidence": "Found in src/api/favorites.ts:23"
+  },
+  {
+    "apiRef": "useFavoriteStore.save()",
+    "verified": false,
+    "method": "grep",
+    "evidence": "Not found — implementer used useFavoriteStore.add() instead"
+  }
+]
+```
+
+Script enforcement: any `apiRefs` entry without a corresponding `groundingChecks` entry → warning (not block, since implementer may have legitimately used a different API). Any `verified: false` entry → code-reviewer must document the deviation in findings.
 
 ---
 
@@ -191,22 +274,38 @@ Code-reviewer receives two screenshots for structured comparison:
 - Figma screenshot (parent pre-fetches via Figma MCP `get_screenshot`)
 - Rendered screenshot (web: Chrome DevTools `take_screenshot` / iOS: Xcode simulator)
 
-**Output** — `visual-review.json`:
+**Output** — `visual-review.json` (split into static and interactive sections):
 ```json
 {
-  "verdict": "MATCH | MINOR_DEVIATION | MAJOR_DEVIATION | INTERACTION_FAILURE",
-  "overallScore": 0-100,
-  "dimensions": {
-    "layout":     { "score": 0-10, "findings": [] },
-    "spacing":    { "score": 0-10, "findings": [] },
-    "color":      { "score": 0-10, "findings": [] },
-    "typography": { "score": 0-10, "findings": [] },
-    "components": { "score": 0-10, "findings": [] }
+  "staticComparison": {
+    "verdict": "MATCH | MINOR_DEVIATION | MAJOR_DEVIATION",
+    "overallScore": 0-100,
+    "dimensions": {
+      "layout":     { "score": 0-10, "findings": [] },
+      "spacing":    { "score": 0-10, "findings": [] },
+      "color":      { "score": 0-10, "findings": [] },
+      "typography": { "score": 0-10, "findings": [] },
+      "components": { "score": 0-10, "findings": [] }
+    },
+    "screenshotPaths": { "figma": "...", "rendered": "..." },
+    "comparisonNotes": "..."
   },
-  "screenshotPaths": { "figma": "...", "rendered": "..." },
-  "comparisonNotes": "..."
+  "interactiveCheckpoints": [
+    {
+      "afterBddStep": "AC-2.Then.1",
+      "screenshotPath": ".pilot/screenshots/AC-2-step-1.png",
+      "figmaNodeId": "123:456",
+      "score": 72,
+      "findings": [],
+      "interactionSuccess": true
+    }
+  ],
+  "interactiveVerdict": "PASS | MINOR_DEVIATION | MAJOR_DEVIATION | INTERACTION_FAILURE",
+  "interactiveAdvisory": true
 }
 ```
+
+**V1 blocking behavior**: Only `staticComparison.verdict` drives the pipeline verdict. `interactiveCheckpoints` and `interactiveVerdict` are advisory (logged for data collection, not blocking).
 
 **Verdict mapping**:
 
@@ -216,7 +315,7 @@ Code-reviewer receives two screenshots for structured comparison:
 | 60-79 | MINOR_DEVIATION | Pass, but PR description notes deviations for human review |
 | < 60 | MAJOR_DEVIATION | Trigger fix round — implementer receives findings, fixes UI only |
 
-**Script enforcement**: `validate-visual-review.sh` — verdict MATCH but any dimension < 5 → `exit 2` (scoring inconsistency).
+**Script enforcement**: `validate-visual-review.sh` — `staticComparison.verdict` is MATCH but any dimension < 5 → `exit 2` (scoring inconsistency). Interactive results are not validated for blocking in V1.
 
 ### 3.2 Trigger Conditions (Expanded)
 
@@ -270,7 +369,12 @@ Visual fix rounds are restricted to UI-only changes. Implementer prompt injectio
 
 > "This fix round is for UI styling only (CSS/layout/style attributes). If the visual deviation's root cause is a functional logic issue, report BLOCKED with explanation."
 
-**Visual fix → code review interaction**: Visual fix rounds only re-run VISUAL_CHECK, NOT full CODE_REVIEW. If the visual fix changes >50 lines of code, ESCALATE instead of re-running (large changes risk regressions that need full review). Max 2 visual fix rounds before ESCALATE.
+**Visual fix → code review interaction**:
+- Visual fix changes are diffed to determine scope:
+  - **Pure styling files** (`.css`, `.scss`, style blocks in `.vue`) → re-run VISUAL_CHECK only
+  - **Mixed files** (template + style, or any `.ts`/`.swift`/`.kt` changes) → re-run Track A BDD tests (smoke regression) + VISUAL_CHECK
+  - **>50 lines changed** → ESCALATE (large changes risk regressions that need full review)
+- Max 2 visual fix rounds before ESCALATE
 
 ### 3.5 V2 Roadmap (Not This Release)
 
@@ -376,6 +480,8 @@ Gherkin scenarios execute on two tracks, routed by step type:
 
 Track values: `"mcp"` (interactive only — advisory in V1), `"test"` (unit/integration only — blocking), `"hybrid"` (both — Track A must pass for blocking verdict; Track B is advisory in V1).
 
+**V1 constraint on behavioral ACs**: Behavioral ACs (per §4.1 classification) MUST have at least a Track A (`"test"`) or `"hybrid"` track assignment. A behavioral AC with `track: "mcp"` only is invalid because it would have no blocking verification. `validate-plan.sh`: behavioral AC with `track: "mcp"` → `exit 2` with message "Behavioral AC requires blocking Track A test; use 'hybrid' or 'test'". If the AC is truly UI-only and cannot have a unit test, classify it as `track: "mcp"` but set `blockingVerdict` to `"UNVERIFIED"` (see §4.3), which blocks APPROVE and requires human acknowledgment.
+
 ### 4.3 BDD Verification in Code Review
 
 BDD verification is embedded in Stage 1 (SPEC_COMPLIANCE) of the two-stage review (§2.1):
@@ -433,7 +539,21 @@ Stage 1: SPEC_COMPLIANCE
 }
 ```
 
-**Verdict logic**: `blockingVerdict` is computed from non-advisory tracks only. In V1, only Track A (`"test"`) is non-advisory. A scenario with only `"mcp"` track results has `blockingVerdict: "PASS"` by default (advisory cannot block). This schema supports future promotion of Track B to blocking by flipping `advisory: false`.
+**Schema enums**:
+- `trackResults.<track>.verdict`: `PASS` | `FAIL` | `SKIPPED`
+- `trackResults.<track>.skipReason` (when verdict is SKIPPED): `SKIPPED_PRECONDITION` | `SKIPPED_MCP_UNAVAILABLE` | `SKIPPED_NO_TEST_INFRA`
+- `trackResults.<track>.advisory`: `true` (V1 for all MCP tracks) | `false`
+- `blockingVerdict`: `PASS` | `FAIL` | `SKIPPED` | `UNVERIFIED`
+
+**Verdict logic**:
+- `blockingVerdict` is computed from non-advisory tracks only
+- Has at least one non-advisory track with `PASS` → `blockingVerdict: "PASS"`
+- Any non-advisory track with `FAIL` → `blockingVerdict: "FAIL"`
+- All non-advisory tracks `SKIPPED` → `blockingVerdict: "SKIPPED"`
+- No non-advisory tracks exist (MCP-only behavioral AC) → `blockingVerdict: "UNVERIFIED"`
+- `UNVERIFIED` blocks APPROVE (requires human acknowledgment or track reclassification)
+
+This schema supports future promotion of Track B to blocking by flipping `advisory: false`.
 
 ### 4.4 Script Enforcement
 
