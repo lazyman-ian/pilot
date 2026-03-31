@@ -859,13 +859,13 @@ Add Phase 1 enhancements to the Quality Gates section:
 
 - [ ] **Step 3: Bump version in plugin.json**
 
-Read `.claude-plugin/plugin.json`, bump version to next minor (e.g., 1.6.0 → 1.7.0).
+Read `.claude-plugin/plugin.json`, bump version to 2.0.0 (major version — Phase 1 is a breaking enhancement to pipeline protocol).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md .claude-plugin/plugin.json
-git commit -m "docs: update CLAUDE.md quality gates for Phase 1, bump version to v1.7.0"
+git commit -m "docs: update CLAUDE.md quality gates for Phase 1, bump version to v2.0.0"
 ```
 
 ---
