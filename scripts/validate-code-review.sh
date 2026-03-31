@@ -102,6 +102,15 @@ fi
 
 # Check 8 (§2.1): planCoverage enforcement — only when verdict=APPROVE
 if [ "$VERDICT" = "APPROVE" ]; then
+  HAS_PLAN_COVERAGE=$(jq -r '.planCoverage // empty' "$FILE" 2>/dev/null)
+  if [ -z "$HAS_PLAN_COVERAGE" ]; then
+    pilot_blocked \
+      "APPROVE without planCoverage field" \
+      "Two-stage review requires planCoverage proving all plan steps were completed (§2.1)" \
+      "Add planCoverage object with total, completed, removed, and steps array" \
+      ".pilot/code-review.json → planCoverage" >&2
+    exit 2
+  fi
   PLAN_TOTAL=$(jq -r '.planCoverage.total // 0' "$FILE" 2>/dev/null)
   if [ "${PLAN_TOTAL:-0}" -gt 0 ]; then
     PLAN_COMPLETED=$(jq -r '.planCoverage.completed // 0' "$FILE" 2>/dev/null)
@@ -139,6 +148,19 @@ if [ "$VERDICT" = "APPROVE" ]; then
     exit 2
   fi
 
+  # Check command, output, exitCode are present
+  VS_CMD=$(jq -r '.verificationSummary.command // empty' "$FILE" 2>/dev/null)
+  VS_OUTPUT=$(jq -r '.verificationSummary.output // empty' "$FILE" 2>/dev/null)
+  VS_EXIT=$(jq -r '.verificationSummary.exitCode // empty' "$FILE" 2>/dev/null)
+  if [ -z "$VS_CMD" ] || [ -z "$VS_OUTPUT" ] || [ -z "$VS_EXIT" ]; then
+    pilot_blocked \
+      "APPROVE with incomplete verificationSummary" \
+      "Verification Iron Law requires concrete evidence: command, output, and exitCode (§2.3)" \
+      "Add all fields: {\"type\":\"test\",\"command\":\"npx vitest run\",\"output\":\"...\",\"exitCode\":0}" \
+      ".pilot/code-review.json → verificationSummary" >&2
+    exit 2
+  fi
+
   # If plan.json exists and has any test-first step, verificationSummary.type must be "test"
   PILOT_DIR=$(dirname "$FILE")
   PLAN_FILE="$PILOT_DIR/plan.json"
@@ -159,26 +181,29 @@ fi
 PILOT_DIR=$(dirname "$FILE")
 CONCERNS_FILE="$PILOT_DIR/concerns.json"
 if [ -f "$CONCERNS_FILE" ] && [ "$VERDICT" = "APPROVE" ]; then
-  CONCERNS_COUNT=$(jq '.concerns | length' "$CONCERNS_FILE" 2>/dev/null)
-  RESOLUTION_COUNT=$(jq '.concernsResolution | length' "$FILE" 2>/dev/null)
+  CONCERNS_COUNT=$(jq '.concerns | length' "$CONCERNS_FILE" 2>/dev/null || echo 0)
+  if [ "${CONCERNS_COUNT:-0}" -gt 0 ]; then
+    # Check unique concernIndex coverage — each concern must have exactly one resolution
+    UNIQUE_INDICES=$(jq '[.concernsResolution[]?.concernIndex] | unique | length' "$FILE" 2>/dev/null || echo 0)
+    if [ "${UNIQUE_INDICES:-0}" -lt "${CONCERNS_COUNT:-0}" ]; then
+      pilot_blocked \
+        "APPROVE with incomplete concernsResolution ($UNIQUE_INDICES unique indices / $CONCERNS_COUNT concerns)" \
+        "Every concern must have a unique concernIndex in concernsResolution (§1.1)" \
+        "Ensure each concern has exactly one resolution entry with its concernIndex" \
+        ".pilot/code-review.json → concernsResolution[].concernIndex" >&2
+      exit 2
+    fi
 
-  if [ "${RESOLUTION_COUNT:-0}" -lt "${CONCERNS_COUNT:-0}" ]; then
-    pilot_blocked \
-      "concernsResolution has $RESOLUTION_COUNT entries but concerns.json has $CONCERNS_COUNT concern(s)" \
-      "Every concern raised must have a corresponding resolution before APPROVE." \
-      "Add missing resolution entries to concernsResolution array in code-review.json." \
-      "concerns=$CONCERNS_COUNT resolutions=$RESOLUTION_COUNT" >&2
-    exit 2
-  fi
-
-  # Any concern with resolution="confirmed" blocks APPROVE
-  CONFIRMED_COUNT=$(jq '[.concernsResolution // [] | .[] | select(.resolution == "confirmed")] | length' "$FILE" 2>/dev/null)
-  if [ "${CONFIRMED_COUNT:-0}" -gt 0 ]; then
-    pilot_blocked \
-      "concernsResolution has $CONFIRMED_COUNT confirmed concern(s) — APPROVE blocked" \
-      "A concern marked resolution=confirmed means the issue was found to be real and unresolved." \
-      "Resolve all confirmed concerns (change to \"addressed\" or \"invalid\") before approving." >&2
-    exit 2
+    # Any concern with resolution="confirmed" blocks APPROVE
+    CONFIRMED_COUNT=$(jq '[.concernsResolution[]? | select(.resolution == "confirmed")] | length' "$FILE" 2>/dev/null || echo 0)
+    if [ "${CONFIRMED_COUNT:-0}" -gt 0 ]; then
+      pilot_blocked \
+        "APPROVE with $CONFIRMED_COUNT confirmed (unresolved) concern(s)" \
+        "Confirmed concerns indicate real issues — cannot APPROVE (§1.1)" \
+        "Change verdict to FIX_REQUIRED or resolve the confirmed concerns" \
+        ".pilot/code-review.json → concernsResolution[].resolution" >&2
+      exit 2
+    fi
   fi
 fi
 

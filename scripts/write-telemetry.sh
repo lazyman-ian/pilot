@@ -17,6 +17,16 @@ if [ ! -f "$TSV" ]; then
   printf 'timestamp\tpipeline_id\tversion\tproject\tnotion_url\tdesign_rounds\tcode_review_rounds\tinterventions\treview_confidence\tcode_review_confidence\ttotal_minutes\tscore\tstatus\tescalation_count\n' > "$TSV"
 fi
 
+# Migrate existing file: add escalation_count column to header if missing
+if [ -f "$TSV" ]; then
+  HEADER=$(head -1 "$TSV")
+  if ! echo "$HEADER" | grep -q "escalation_count"; then
+    # macOS sed requires '' after -i; GNU sed ignores it — try both
+    sed -i '' '1s/$/\tescalation_count/' "$TSV" 2>/dev/null || \
+      sed -i '1s/$/\tescalation_count/' "$TSV" 2>/dev/null
+  fi
+fi
+
 # Extract fields from state.json
 PIPELINE_ID=$(jq -r '.pipelineId // "unknown"' "$STATE")
 PROJECT=$(jq -r '.targetProject // "unknown"' "$STATE")
