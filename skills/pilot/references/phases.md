@@ -33,7 +33,7 @@ Each phase has specific resume instructions (used by `post-compact-resume.sh`):
 
 | Phase | Key Artifact | Resume Instruction |
 |-------|-------------|-------------------|
-| DESIGN | design.md | Re-read design.md, continue from where design left off. Do NOT restart. |
+| DESIGN | tech-design.md | Re-read tech-design.md, continue from where design left off. Do NOT restart. |
 | REVIEW | review.json | Read review verdict. If REVISE, prepare next design iteration. If APPROVE, proceed to PLAN. |
 | IMPLEMENT | plan.json + step index | Read plan.json, check STEP_STATUSES, resume from first incomplete step. Reconstruct anchor set via `git diff --name-only $(git merge-base origin/<baseBranch> HEAD)..HEAD`. |
 | CODE_REVIEW | code-review.json | Read verdict + reviewIteration. If FIX_REQUIRED, invoke implementer fix mode. |
@@ -524,7 +524,7 @@ If code-review fix round 3 verdict is still FIX_REQUIRED:
    - Pattern analysis: which issues recurred across all 3 rounds?
    - Root cause hypothesis: is this a design-level flaw, not an implementation bug?
    - Suggested design revision or alternative approach
-3. Set `state.json.currentPhase → "ESCALATED"`
+3. Set `state.json.phase → "ESCALATED"`
 4. Set `state.json.metrics.escalationCount += 1`
 5. Present the architectural concern analysis to the user
 

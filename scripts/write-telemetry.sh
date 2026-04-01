@@ -24,6 +24,9 @@ if [ -f "$TSV" ]; then
     # macOS sed requires '' after -i; GNU sed ignores it — try both
     sed -i '' '1s/$/\tescalation_count/' "$TSV" 2>/dev/null || \
       sed -i '1s/$/\tescalation_count/' "$TSV" 2>/dev/null
+    # Pad existing data rows with default 0
+    sed -i '' '2,$s/$/\t0/' "$TSV" 2>/dev/null || \
+      sed -i '2,$s/$/\t0/' "$TSV" 2>/dev/null
   fi
 fi
 
