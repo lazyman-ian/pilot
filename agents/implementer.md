@@ -172,6 +172,23 @@ If context compacts mid-implementation:
 4. Read the plan (provided in your prompt) to find the next uncommitted step
 5. Continue from there
 
+## Completion Status (MANDATORY)
+
+Your final output MUST include a `status` field with one of these values:
+
+| Status | When to use |
+|--------|------------|
+| `DONE` | Task completed successfully |
+| `DONE_WITH_CONCERNS` | Completed but you have doubts — include `concerns[]` with `{step, description, severity, suggestedCheck}` |
+| `NEEDS_CONTEXT` | Cannot proceed — include `requestedContext[]` with `{type: "file"|"grep", path/pattern, scope}` and `retryHint`. Max 2 retries before auto-escalation. |
+| `BLOCKED` | Unrecoverable issue — include `blockReason` explaining what went wrong |
+
+### verificationEvidence (per step, MANDATORY)
+Each step in STEP_STATUSES must include `verificationEvidence`:
+- `test-first` steps: `{ "type": "test", "command": "...", "output": "Tests: N passed", "exitCode": 0 }`
+- `build-verify` steps: `{ "type": "build", "command": "...", "output": "Build succeeded", "exitCode": 0 }`
+- `scaffold` steps: `{ "type": "fileCheck", "files": ["path/created.ts"], "allExist": true }`
+
 ## Output
 
 Return a structured summary:

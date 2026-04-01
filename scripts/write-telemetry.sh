@@ -14,7 +14,20 @@ command -v jq &>/dev/null || { echo "jq required" >&2; exit 1; }
 
 # Create TSV with header if it doesn't exist
 if [ ! -f "$TSV" ]; then
-  printf 'timestamp\tpipeline_id\tversion\tproject\tnotion_url\tdesign_rounds\tcode_review_rounds\tinterventions\treview_confidence\tcode_review_confidence\ttotal_minutes\tscore\tstatus\n' > "$TSV"
+  printf 'timestamp\tpipeline_id\tversion\tproject\tnotion_url\tdesign_rounds\tcode_review_rounds\tinterventions\treview_confidence\tcode_review_confidence\ttotal_minutes\tscore\tstatus\tescalation_count\n' > "$TSV"
+fi
+
+# Migrate existing file: add escalation_count column to header if missing
+if [ -f "$TSV" ]; then
+  HEADER=$(head -1 "$TSV")
+  if ! echo "$HEADER" | grep -q "escalation_count"; then
+    # macOS sed requires '' after -i; GNU sed ignores it — try both
+    sed -i '' '1s/$/\tescalation_count/' "$TSV" 2>/dev/null || \
+      sed -i '1s/$/\tescalation_count/' "$TSV" 2>/dev/null
+    # Pad existing data rows with default 0
+    sed -i '' '2,$s/$/\t0/' "$TSV" 2>/dev/null || \
+      sed -i '2,$s/$/\t0/' "$TSV" 2>/dev/null
+  fi
 fi
 
 # Extract fields from state.json
@@ -25,6 +38,7 @@ PHASE=$(jq -r '.phase // "UNKNOWN"' "$STATE")
 REVIEW_REVISION_COUNT=$(jq -r '.reviewRevisionCount // 0' "$STATE")
 CODE_REVIEW_COUNT=$(jq -r '.codeReviewCount // 0' "$STATE")
 INTERVENTIONS=$(jq -r '.metrics.interventions // 0' "$STATE")
+ESCALATION_COUNT=$(jq -r '.metrics.escalationCount // 0' "$STATE")
 REVIEW_CONFIDENCE=$(jq -r '.reviewConfidence // 0' "$STATE")
 CODE_REVIEW_CONFIDENCE=$(jq -r '.codeReviewConfidence // 0' "$STATE")
 CREATED_AT=$(jq -r '.createdAt // ""' "$STATE")
@@ -81,10 +95,10 @@ SCORE=$(( COMPLETION_PTS + INTERVENTION_PTS + DESIGN_PTS + CODE_REVIEW_PTS ))
 
 # Write row
 TIMESTAMP=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
-printf '%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n' \
+printf '%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n' \
   "$TIMESTAMP" "$PIPELINE_ID" "$VERSION" "$PROJECT" "$NOTION_URL" \
   "$DESIGN_ROUNDS" "$CODE_REVIEW_ROUNDS" "$INTERVENTIONS" \
   "$REVIEW_CONFIDENCE" "$CODE_REVIEW_CONFIDENCE" \
-  "$TOTAL_MINUTES" "$SCORE" "$STATUS" >> "$TSV"
+  "$TOTAL_MINUTES" "$SCORE" "$STATUS" "$ESCALATION_COUNT" >> "$TSV"
 
 echo "Telemetry written: score=$SCORE (completion=$COMPLETION_PTS intervention=$INTERVENTION_PTS design=$DESIGN_PTS code_review=$CODE_REVIEW_PTS)"
